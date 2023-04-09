@@ -3,3 +3,18 @@
 常用的 ABAP 功能的封装和说明文档
 
 > Packaging and documentation of common ABAP functions
+
+## 工具说明
+
+每个工具的大概说明及链接
+
+### [AKIT-ITAB2XLSX](./AKIT-ITAB2XLSX)
+
+将 ABAP 内表转换成 excel，不依赖于本地的 excel，可直接拿到二进制数据。（通过标准的 alv 功能将内表转换为 XLSX 文件。需要传参 itab 和 alv 的 fieldcat 从而转换内容。）
+
+用途
+
+1. 邮件附件
+2. 大数据量的文件导出
+
+---
