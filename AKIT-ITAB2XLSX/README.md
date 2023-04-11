@@ -13,6 +13,10 @@
 1. 邮件附件
 2. 大数据量的文件导出
 
+## 使用方式
+
+将 `ZCL_AKIT_ITAB2XLSX` 导入到系统中即可
+
 ## 示例
 
 [ZAKIT_DEMO_ITAB2XLSX](./ZAKIT_DEMO_ITAB2XLSX.abap)
