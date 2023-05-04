@@ -30,3 +30,11 @@
 ### [AKIT-JOB](./AKIT-JOB)
 
 将 SM36 相关创建功能的简单一个封装，可通过类 `ZCL_AKIT_JOB` 快速的创建、删除、查询 JOB
+
+---
+
+### [AKIT-LTEXT](./AKIT-LTEXT)
+
+通过对 BLOB 表的二进制数据的读取，快速的拉取大量的长文本内容，无需每次 `READ_TEXT` 访问数据库，从而加快读取速度
+
+---
