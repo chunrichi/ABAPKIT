@@ -38,3 +38,11 @@
 通过对 BLOB 表的二进制数据的读取，快速的拉取大量的长文本内容，无需每次 `READ_TEXT` 访问数据库，从而加快读取速度
 
 ---
+
+### [AKIT-FEISHU-HOOK-BOT](./AKIT-FEISHU_HOOK_BOT)
+
+通过调用飞书 **自定义机器人** 接口，实现消息推送到群中
+
+官方文档: [飞书自定义机器人](https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN#4996824a)
+
+---
