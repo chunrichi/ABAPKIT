@@ -33,32 +33,32 @@
 
 选择设置 -> 群机器人
 
-![添加机器人-设置](attachments/im230522105127.png)
+![添加机器人-设置](attachments/im20230522105127.png)
 
 选择创建一个新的机器人
 
-![添加机器人-创建](attachments/im230522105156.png)
+![添加机器人-创建](attachments/im20230522105156.png)
 
 设置机器人名称
 
-![添加机器人-命名](attachments/im230522105226.png)
+![添加机器人-命名](attachments/im20230522105226.png)
 
 拿到 hook 地址
 
-![添加机器人-hook地址](attachments/im230522105252.png)
+![添加机器人-hook地址](attachments/im20230522105252.png)
 
 如果遗忘可以在这里查看
 
-![添加机器人-创建后查看地址](attachments/im230522105330.png)
+![添加机器人-创建后查看地址](attachments/im20230522105330.png)
 
 执行程序 `ZAKIT_DEMO_WEIXIN_HOOKBOT`
 
-![执行测试程序](attachments/im230522105346.png)
+![执行测试程序](attachments/im20230522105346.png)
 
 选择要推送的类型，点执行，填写刚才拿到的 `URL`
 
-![设置hook地址](attachments/im230522105410.png)
+![设置hook地址](attachments/im20230522105410.png)
 
 左下角会出现相应的消息，如果成功，可在企业微信中查看推送的内容
 
-![查看推送消息](attachments/im230522105515.png)
+![查看推送消息](attachments/im20230522105515.png)
