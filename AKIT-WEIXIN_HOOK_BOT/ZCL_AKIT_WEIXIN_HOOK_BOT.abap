@@ -111,10 +111,26 @@ CLASS ZCL_AKIT_WEIXIN_HOOK_BOT IMPLEMENTATION.
 
     DATA: lv_res_string TYPE string,
           ls_res        TYPE ty_weixin_result.
+    DATA: lv_url_key TYPE string.
+
+    IF NOT ( raw-content_type = `image`
+      OR raw-content_type = `voice`
+      OR raw-content_type = `video`
+      OR raw-content_type = `file` ).
+      result-type = 'E'.
+      result-message = `error content`.
+    ENDIF.
+
+    FIND REGEX `key=([^&]*)` IN me->botv-url
+      SUBMATCHES lv_url_key.
 
     lv_res_string = me->post(
-      url = me->botv-url
-      raw = raw
+      url    = `https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media`
+      params = VALUE #(
+          ( key = `key`  value = lv_url_key )
+          ( key = `type` value = raw-content_type )
+        )
+      raw    = raw
     ).
 
     " 返回消息处理

@@ -32,6 +32,11 @@ SELECTION-SCREEN BEGIN OF BLOCK blck1 WITH FRAME.
     PARAMETERS: p_news RADIOBUTTON GROUP gp1.
   SELECTION-SCREEN END OF LINE.
 
+  SELECTION-SCREEN BEGIN OF LINE. " 文件
+    SELECTION-SCREEN COMMENT 5(23) t_file FOR FIELD p_file.
+    PARAMETERS: p_file RADIOBUTTON GROUP gp1.
+  SELECTION-SCREEN END OF LINE.
+
   SELECTION-SCREEN BEGIN OF LINE. " 文本卡片
     SELECTION-SCREEN COMMENT 5(23) t_textc FOR FIELD p_textc.
     PARAMETERS: p_textc RADIOBUTTON GROUP gp1.
@@ -56,10 +61,11 @@ INITIALIZATION.
   t_mark  = 'markdown'(002).
   t_image = '图片'(003).
   t_news  = '图文'(004).
-  t_textc = '文本卡片'(005).
-  t_newsc = '图文卡片'(006).
+  t_file  = '文件'(005).
+  t_textc = '文本卡片'(006).
+  t_newsc = '图文卡片'(007).
 
-  t_desc  = '推送测试，需要先按自定义机器人获取参数的方法更改程序一部分参数'(007).
+  t_desc  = '推送测试，需要先按自定义机器人获取参数的方法更改程序一部分参数'(008).
 
 *&----------------------------------------------------------------------
 *                     Start-Of-Selection
@@ -86,6 +92,10 @@ START-OF-SELECTION.
   " 图文
   IF p_news = 'X'.
     PERFORM frm_push_news.
+  ENDIF.
+
+  IF p_file = 'X'.
+    PERFORM frm_push_file.
   ENDIF.
 
   " 文本卡片
@@ -295,6 +305,97 @@ FORM frm_push_news .
   ELSE.
     MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
   ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_push_file
+*&---------------------------------------------------------------------*
+*&  文件推送
+*&---------------------------------------------------------------------*
+FORM frm_push_file .
+
+  " 注：图片（base64编码前）最大不能超过2M，支持JPG,PNG格式
+
+  DATA: lv_xstring TYPE xstring.
+
+  " 上载文件
+  DATA: lv_path TYPE rlgrap-filename.
+
+  CALL FUNCTION 'KD_GET_FILENAME_ON_F4'
+    EXPORTING
+      static    = 'X'
+      mask      = '*'
+    CHANGING
+      file_name = lv_path.
+
+  CHECK lv_path IS NOT INITIAL.
+
+  TYPES: ty_hex TYPE x LENGTH 255.
+
+  DATA: lv_file_name    TYPE string,
+        lt_file_data    TYPE TABLE OF ty_hex WITH DEFAULT KEY,
+        lv_file_xstring TYPE xstring,
+        lv_length       TYPE i.
+
+  lv_file_name = lv_path.
+
+  CALL FUNCTION 'GUI_UPLOAD'
+    EXPORTING
+      filename                = lv_file_name
+      filetype                = 'BIN'
+    IMPORTING
+      filelength              = lv_length
+    TABLES
+      data_tab                = lt_file_data
+    EXCEPTIONS
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      OTHERS                  = 17.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  CONCATENATE LINES OF lt_file_data INTO lv_xstring IN BYTE MODE.
+
+  " 发送
+  DATA(ls_file) = gr_weixin->fileupload(
+    raw = VALUE #(
+      filename     = `upload.txt`
+      content_type = `file`
+      raw          = lv_xstring
+    )
+  ).
+  IF ls_file-type = 'E'.
+    MESSAGE ls_file-message TYPE 'S' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  DATA(ls_result) = gr_weixin->push(
+    msg_type = 'file'
+    content  = |\{ "media_id": "{ ls_file-media_id }" \}|
+  ).
+
+  IF ls_result-type = 'S'.
+    MESSAGE ls_result-message TYPE 'S'.
+  ELSE.
+    MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
+  ENDIF.
+
 
 ENDFORM.
 *&---------------------------------------------------------------------*
