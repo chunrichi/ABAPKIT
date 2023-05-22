@@ -46,3 +46,11 @@
 官方文档: [飞书自定义机器人](https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN#4996824a)
 
 ---
+
+### [AKIT-WEIXIN-HOOK-BOT](./AKIT-WEIXIN_HOOK_BOT)
+
+通过调用企业微信 **群机器人** 接口，实现消息等内容推送到群中
+
+官方文档: [群机器人配置说明](https://developer.work.weixin.qq.com/document/path/91770)
+
+---
