@@ -85,7 +85,7 @@ CLASS zcl_akit_job DEFINITION
     METHODS new_step
       IMPORTING
         !program            TYPE program
-        !variant            TYPE variant
+        !variant            TYPE variant OPTIONAL
         !user               TYPE syuname DEFAULT sy-uname
         !language           TYPE sylangu DEFAULT sy-langu
         !selection_table    TYPE rsparams_tt OPTIONAL
@@ -107,8 +107,8 @@ CLASS zcl_akit_job DEFINITION
       IMPORTING
         !date                TYPE d
         !time                TYPE t
-        !not_later_than_date TYPE tbtcjob-laststrtdt OPTIONAL             " laststrtdt
-        !not_later_than_time TYPE tbtcjob-laststrttm OPTIONAL             " laststrttm
+        !not_later_than_date TYPE tbtcjob-laststrtdt OPTIONAL               " laststrtdt
+        !not_later_than_time TYPE tbtcjob-laststrttm OPTIONAL               " laststrttm
       EXCEPTIONS
         lcx_job_exception .
     METHODS run_after_jobid
@@ -133,6 +133,16 @@ CLASS zcl_akit_job DEFINITION
         !weeks     TYPE tbtcjob-prdweeks OPTIONAL
       RETURNING
         VALUE(job) TYPE REF TO zcl_akit_job .
+    CLASS-METHODS check_exists
+      IMPORTING
+        !jobname    TYPE tbtcs-jobname
+        !periodic   TYPE tbtcs-periodic OPTIONAL
+      RETURNING
+        VALUE(info) TYPE tbtcs .
+    CLASS-METHODS delete_job
+      IMPORTING
+        !jobcount TYPE tbtcjob-jobcount
+        !jobname  TYPE tbtcjob-jobname .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -260,9 +270,10 @@ CLASS ZCL_AKIT_JOB IMPLEMENTATION.
         WHEN 4.
           MESSAGE e034(xm) INTO dummy. " Internal problem (function &1)
       ENDCASE.
-    ENDIF.
 
-    lcx_job_exception=>raise_t100( ).
+      lcx_job_exception=>raise_t100( ).
+
+    ENDIF.
 
   ENDMETHOD.
 
@@ -683,6 +694,56 @@ CLASS ZCL_AKIT_JOB IMPLEMENTATION.
 
       lcx_job_exception=>raise_t100( ).
 
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD check_exists.
+    " 检查是否存在
+
+    SELECT SINGLE
+      *
+      FROM tbtcs
+      WHERE jobname  = @jobname
+        AND periodic = @periodic          " 周期性作业
+      INTO @info.
+
+  ENDMETHOD.
+
+
+  METHOD delete_job.
+    " 删除 JOB
+
+    CALL FUNCTION 'BP_JOB_DELETE'
+      EXPORTING
+        jobcount                 = jobcount
+        jobname                  = jobname
+*       FORCEDMODE               = ' '
+*       COMMITMODE               = 'X'
+*       DELINFO                  = ' '
+      EXCEPTIONS
+        cant_delete_event_entry  = 1
+        cant_delete_job          = 2
+        cant_delete_joblog       = 3
+        cant_delete_steps        = 4
+        cant_delete_time_entry   = 5
+        cant_derelease_successor = 6
+        cant_enq_predecessor     = 7
+        cant_enq_successor       = 8
+        cant_enq_tbtco_entry     = 9
+        cant_update_predecessor  = 10
+        cant_update_successor    = 11
+        commit_failed            = 12
+        jobcount_missing         = 13
+        jobname_missing          = 14
+        job_does_not_exist       = 15
+        job_is_already_running   = 16
+        no_delete_authority      = 17
+        OTHERS                   = 18.
+
+    IF sy-subrc <> 0.
+      lcx_job_exception=>raise_t100( ).
     ENDIF.
 
   ENDMETHOD.

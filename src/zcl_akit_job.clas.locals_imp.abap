@@ -64,10 +64,6 @@ CLASS lcx_job_exception IMPLEMENTATION.
     ls_t100_key-attr3 = 'MSGV3'.
     ls_t100_key-attr4 = 'MSGV4'.
 
-    IF iv_msgid IS INITIAL.
-      CLEAR ls_t100_key.
-    ENDIF.
-
     RAISE EXCEPTION TYPE lcx_job_exception
       EXPORTING
         textid   = ls_t100_key
