@@ -54,3 +54,11 @@
 官方文档: [群机器人配置说明](https://developer.work.weixin.qq.com/document/path/91770)
 
 ---
+
+### [AKIT-FILE-SERVER](./AKIT-FILE_SERVER)
+
+通过 `OPEN DATASET` 相关方式往服务器指定目录写入文件
+
+可通过服务器目录映射将文件进而写入特定服务器中，从而不占用 SAP 应用服务器内存
+
+---
