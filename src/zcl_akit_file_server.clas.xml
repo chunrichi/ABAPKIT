@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_CLAS" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <VSEOCLASS>
+    <CLSNAME>ZCL_AKIT_FILE_SERVER</CLSNAME>
+    <LANGU>1</LANGU>
+    <DESCRIPT>服务器文件</DESCRIPT>
+    <STATE>1</STATE>
+    <CLSCCINCL>X</CLSCCINCL>
+    <FIXPT>X</FIXPT>
+    <UNICODE>X</UNICODE>
+   </VSEOCLASS>
+   <DESCRIPTIONS>
+    <SEOCOMPOTX>
+     <CMPNAME>ALIASS</CMPNAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>字符字段长度为 10</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>DELETE</CMPNAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>删除文件</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>DIRHOME</CMPNAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>获取文件上载基础路径</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>DOWNLOAD</CMPNAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>从服务器下载文件</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>GEN_GUID</CMPNAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>生成唯一标识</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>GEN_INFO</CMPNAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>生成文件信息</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>MKDIR</CMPNAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>创建文件夹</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CMPNAME>UPLOAD</CMPNAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>文件上载到服务器</DESCRIPT>
+    </SEOCOMPOTX>
+   </DESCRIPTIONS>
+   <DESCRIPTIONS_SUB>
+    <SEOSUBCOTX>
+     <CMPNAME>DIRHOME</CMPNAME>
+     <SCONAME>DIR</SCONAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>char(120) 数据类型</DESCRIPT>
+    </SEOSUBCOTX>
+    <SEOSUBCOTX>
+     <CMPNAME>GEN_INFO</CMPNAME>
+     <SCONAME>DATE</SCONAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>字符格式日期</DESCRIPT>
+    </SEOSUBCOTX>
+    <SEOSUBCOTX>
+     <CMPNAME>GUIDOWN</CMPNAME>
+     <SCONAME>SOLIX</SCONAME>
+     <LANGU>1</LANGU>
+     <DESCRIPT>GBT: SOLIX 作为表类型</DESCRIPT>
+    </SEOSUBCOTX>
+   </DESCRIPTIONS_SUB>
+  </asx:values>
+ </asx:abap>
+</abapGit>
