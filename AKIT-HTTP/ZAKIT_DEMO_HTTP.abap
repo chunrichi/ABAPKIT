@@ -128,14 +128,10 @@ INITIALIZATION.
   t_passw = '密码'.
 
   t_act01 = t_act02 = t_act03 = t_act04 = '激活'.
-  "t_key01 = t_key02 = t_key03 = t_key04 = 'Key'.
+  t_key01 = t_key02 = t_key03 = t_key04 = 'Key'.
   t_val01 = t_val02 = t_val03 = t_val04 = 'Value'.
   t_btn01 = t_btn02 = t_btn03 = t_btn04 = '+'.
   t_btn04 = '-'.
-  t_key01 = '01'.
-  t_key02 = '02'.
-  t_key03 = '03'.
-  t_key04 = '04'.
 
   gt_head_btn_indx = VALUE #( ( 1 ) ).
   gt_head_hidden   = VALUE #( ( 2 ) ( 3 ) ( 4 ) ).
