@@ -16,6 +16,7 @@
     - [AKIT-FEISHU-HOOK-BOT](#akit-feishu-hook-bot)
     - [AKIT-WEIXIN-HOOK-BOT](#akit-weixin-hook-bot)
     - [AKIT-FILE-SERVER](#akit-file-server)
+    - [AKIT-HTTP](#akit-http)
 
 ## 工具说明
 
@@ -75,3 +76,9 @@
 可通过服务器目录映射将文件进而写入特定服务器中，从而不占用 SAP 应用服务器内存
 
 ---
+
+### [AKIT-HTTP](./AKIT-HTTP)
+
+简单的 `HTTP` 示例，简单的模拟了 `REST` 请求的一些比较常见的内容
+
+> 如果使用可将局部类拷出
