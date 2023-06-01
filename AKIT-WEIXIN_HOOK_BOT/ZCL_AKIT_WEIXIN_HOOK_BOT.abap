@@ -1,6 +1,5 @@
 CLASS zcl_akit_weixin_hook_bot DEFINITION
   PUBLIC
-  FINAL
   CREATE PUBLIC .
 
   PUBLIC SECTION.
@@ -54,7 +53,6 @@ CLASS zcl_akit_weixin_hook_bot DEFINITION
       RETURNING
         VALUE(json) TYPE string .
   PROTECTED SECTION.
-  PRIVATE SECTION.
 
     TYPES:
       BEGIN OF ty_key_value,
@@ -88,6 +86,7 @@ CLASS zcl_akit_weixin_hook_bot DEFINITION
         !msg_type    TYPE string DEFAULT 'text'
       RETURNING
         VALUE(rjson) TYPE string .
+  PRIVATE SECTION.
 ENDCLASS.
 
 
@@ -123,6 +122,7 @@ CLASS ZCL_AKIT_WEIXIN_HOOK_BOT IMPLEMENTATION.
 
     FIND REGEX `key=([^&]*)` IN me->botv-url
       SUBMATCHES lv_url_key.
+
 
     lv_res_string = me->post(
       url    = `https://qyapi.weixin.qq.com/cgi-bin/webhook/upload_media`
@@ -277,8 +277,10 @@ CLASS ZCL_AKIT_WEIXIN_HOOK_BOT IMPLEMENTATION.
       lr_http_client->request->set_formfield_encoding( formfield_encoding = cl_http_request=>if_http_entity~co_encoding_raw ).
       DATA(lr_part) = lr_http_client->request->if_http_entity~add_multipart( ).
 
-      lr_part->set_header_field( name  = 'content-disposition'
-                                 value = |form-data; name="{ `content` }"; filename="{ raw-filename }";| ).
+      lr_part->set_header_field( name  = 'Content-Disposition'
+                                 value = |form-data; name="{ `media`
+                                 }"; filename="{ raw-filename
+                                 }"; filename*="UTF-8''{ cl_http_utility=>if_http_utility~escape_url( raw-filename ) }";| ).
 
       lr_part->set_content_type( COND #( WHEN raw-content_type IS INITIAL
                                          THEN `application/octet-stream`

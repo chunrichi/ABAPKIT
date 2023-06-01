@@ -317,6 +317,7 @@ FORM frm_push_file .
   " 注：图片（base64编码前）最大不能超过2M，支持JPG,PNG格式
 
   DATA: lv_xstring TYPE xstring.
+  DATA: lv_filename TYPE string.
 
   " 上载文件
   DATA: lv_path TYPE rlgrap-filename.
@@ -369,17 +370,24 @@ FORM frm_push_file .
     MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
           WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
   ENDIF.
-
   CONCATENATE LINES OF lt_file_data INTO lv_xstring IN BYTE MODE.
+
+  " 获取文件名
+  SPLIT lv_file_name AT '\' INTO TABLE DATA(lt_split).
+  READ TABLE lt_split INTO DATA(ls_split) INDEX lines( lt_split ).
+  IF sy-subrc = 0.
+    MOVE ls_split TO lv_filename.
+  ENDIF.
 
   " 发送
   DATA(ls_file) = gr_weixin->fileupload(
     raw = VALUE #(
-      filename     = `upload.txt`
+      filename     = lv_filename
       content_type = `file`
       raw          = lv_xstring
     )
   ).
+
   IF ls_file-type = 'E'.
     MESSAGE ls_file-message TYPE 'S' DISPLAY LIKE 'E'.
     RETURN.
