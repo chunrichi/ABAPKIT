@@ -15,7 +15,7 @@ CLASS zcl_akit_feishu_hook_bot DEFINITION
       BEGIN OF ty_feishu_result,
         code TYPE i,
         msg  TYPE string,
-      END OF ty_feishu_result.
+      END OF ty_feishu_result .
 
     DATA:
       BEGIN OF botv,
@@ -25,24 +25,25 @@ CLASS zcl_akit_feishu_hook_bot DEFINITION
       END OF botv .
     DATA result TYPE ty_result .
     DATA status_code TYPE i .
-
     " fix time
-    DATA fix_time TYPE timestamp.
+    DATA fix_time TYPE timestamp .
 
     METHODS constructor
       IMPORTING
         !url   TYPE string
-        !token TYPE string .
+        !token TYPE string OPTIONAL .
     METHODS push
       IMPORTING
-                !content      TYPE string
-                !msg_type     TYPE string DEFAULT 'text'
-      RETURNING VALUE(result) TYPE ty_result .
+        !content      TYPE string
+        !msg_type     TYPE string DEFAULT 'text'
+      RETURNING
+        VALUE(result) TYPE ty_result .
     METHODS genjson_str
       IMPORTING
-                !ijson       TYPE string
-                !msg_type    TYPE string DEFAULT 'text'
-      RETURNING VALUE(rjson) TYPE string .
+        !ijson       TYPE string
+        !msg_type    TYPE string DEFAULT 'text'
+      RETURNING
+        VALUE(rjson) TYPE string .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -92,13 +93,22 @@ CLASS ZCL_AKIT_FEISHU_HOOK_BOT IMPLEMENTATION.
 
     " 生成报文
 
-    rjson = `{`
-    && |  "timestamp": "{ me->send_base-timestamp }",|
-    && |  "sign": "{ me->send_base-sign }",|
-    && |  "msg_type": "{ msg_type }",|
-    && |  "{ COND string( WHEN msg_type = `interactive` THEN `card` ELSE `content` ) }": |
-    && ijson
-    && `}`.
+    IF me->send_base-sign IS INITIAL.
+      rjson = `{`
+      && |  "msg_type": "{ msg_type }",|
+      && |  "{ COND string( WHEN msg_type = `interactive` THEN `card` ELSE `content` ) }": |
+      && ijson
+      && `}`.
+    ELSE.
+      rjson = `{`
+      && |  "timestamp": "{ me->send_base-timestamp }",|
+      && |  "sign": "{ me->send_base-sign }",|
+      && |  "msg_type": "{ msg_type }",|
+      && |  "{ COND string( WHEN msg_type = `interactive` THEN `card` ELSE `content` ) }": |
+      && ijson
+      && `}`.
+    ENDIF.
+
 
   ENDMETHOD.
 
@@ -260,6 +270,8 @@ CLASS ZCL_AKIT_FEISHU_HOOK_BOT IMPLEMENTATION.
 
 
   METHOD push.
+
+    " 文档: https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN#da123a1f
 
     " 生成发送数据
     DATA: lv_res_string TYPE string,
