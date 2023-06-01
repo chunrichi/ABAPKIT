@@ -15,6 +15,7 @@
     - [AKIT-LTEXT](#akit-ltext)
     - [AKIT-FEISHU-HOOK-BOT](#akit-feishu-hook-bot)
     - [AKIT-WEIXIN-HOOK-BOT](#akit-weixin-hook-bot)
+    - [AKIT-DING-HOOK-BOT](#akit-ding-hook-bot)
     - [AKIT-FILE-SERVER](#akit-file-server)
     - [AKIT-HTTP](#akit-http)
 
@@ -66,6 +67,14 @@
 通过调用企业微信 **群机器人** 接口，实现消息等内容推送到群中
 
 官方文档: [群机器人配置说明](https://developer.work.weixin.qq.com/document/path/91770)
+
+---
+
+### [AKIT-DING-HOOK-BOT](./AKIT-DING_HOOK_BOT)
+
+通过调用钉钉 **群机器人** 接口，实现消息等内容推送到群中
+
+官方文档: [钉钉群机器人](https://open.dingtalk.com/document/robots/custom-robot-access)
 
 ---
 
