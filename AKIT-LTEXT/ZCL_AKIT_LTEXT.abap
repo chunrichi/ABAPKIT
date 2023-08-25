@@ -93,7 +93,7 @@ CLASS ZCL_AKIT_LTEXT IMPLEMENTATION.
       srtf2,
       clustr,
       clustd
-      FROM stxl
+      FROM ('stxl')
       FOR ALL ENTRIES IN @tdnames
       WHERE tdname = @tdnames-table_line
         AND relid  = @me->relid
@@ -122,7 +122,7 @@ CLASS ZCL_AKIT_LTEXT IMPLEMENTATION.
           EXIT.
         ENDIF.
 
-        lv_xstring &&= ls_stxl-clustd.
+        lv_xstring = lv_xstring && ls_stxl-clustd.
       ENDLOOP.
     ENDIF.
 
@@ -139,14 +139,14 @@ CLASS ZCL_AKIT_LTEXT IMPLEMENTATION.
     " 固定方法
 
     LOOP AT tline INTO DATA(ls_tline).
-      str &&= ls_tline-tdline.
+      str = str && ls_tline-tdline.
 
       AT LAST.
         EXIT.
       ENDAT.
 
       IF ls_tline-tdformat = '*'.
-        str &&= cl_abap_char_utilities=>cr_lf.
+        str = str && cl_abap_char_utilities=>cr_lf.
       ENDIF.
     ENDLOOP.
 
