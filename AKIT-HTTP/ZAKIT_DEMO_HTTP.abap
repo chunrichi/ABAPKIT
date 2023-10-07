@@ -82,9 +82,9 @@ SELECTION-SCREEN BEGIN OF BLOCK blck3 WITH FRAME.
 
   SELECTION-SCREEN BEGIN OF LINE.
     SELECTION-SCREEN COMMENT 2(8) t_key02 FOR FIELD p_key02 MODIF ID hb2.
-    PARAMETERS: p_key02 TYPE text02 VISIBLE LENGTH 24 MODIF ID hb2.
+    PARAMETERS: p_key02 TYPE text40 VISIBLE LENGTH 24 MODIF ID hb2.
     SELECTION-SCREEN COMMENT 38(8) t_val02 FOR FIELD p_val02 MODIF ID hb2.
-    PARAMETERS: p_val02 TYPE text02 VISIBLE LENGTH 24 MODIF ID hb2.
+    PARAMETERS: p_val02 TYPE text40 VISIBLE LENGTH 24 MODIF ID hb2.
     SELECTION-SCREEN COMMENT 73(2) t_act02 FOR FIELD p_act02 MODIF ID hb2.
     PARAMETERS: p_act02 AS CHECKBOX MODIF ID hb2 DEFAULT 'X'.
     SELECTION-SCREEN PUSHBUTTON 79(4) t_btn02 USER-COMMAND bt2 MODIF ID hb2.
@@ -92,9 +92,9 @@ SELECTION-SCREEN BEGIN OF BLOCK blck3 WITH FRAME.
 
   SELECTION-SCREEN BEGIN OF LINE.
     SELECTION-SCREEN COMMENT 2(8) t_key03 FOR FIELD p_key03 MODIF ID hb3.
-    PARAMETERS: p_key03 TYPE text03 VISIBLE LENGTH 24 MODIF ID hb3.
+    PARAMETERS: p_key03 TYPE text40 VISIBLE LENGTH 24 MODIF ID hb3.
     SELECTION-SCREEN COMMENT 38(8) t_val03 FOR FIELD p_val03 MODIF ID hb3.
-    PARAMETERS: p_val03 TYPE text03 VISIBLE LENGTH 24 MODIF ID hb3.
+    PARAMETERS: p_val03 TYPE text40 VISIBLE LENGTH 24 MODIF ID hb3.
     SELECTION-SCREEN COMMENT 73(2) t_act03 FOR FIELD p_act03 MODIF ID hb3.
     PARAMETERS: p_act03 AS CHECKBOX MODIF ID hb3 DEFAULT 'X'.
     SELECTION-SCREEN PUSHBUTTON 79(4) t_btn03 USER-COMMAND bt3 MODIF ID hb3.
@@ -102,9 +102,9 @@ SELECTION-SCREEN BEGIN OF BLOCK blck3 WITH FRAME.
 
   SELECTION-SCREEN BEGIN OF LINE.
     SELECTION-SCREEN COMMENT 2(8) t_key04 FOR FIELD p_key04 MODIF ID hb4.
-    PARAMETERS: p_key04 TYPE text04 VISIBLE LENGTH 24 MODIF ID hb4.
+    PARAMETERS: p_key04 TYPE text40 VISIBLE LENGTH 24 MODIF ID hb4.
     SELECTION-SCREEN COMMENT 38(8) t_val04 FOR FIELD p_val04 MODIF ID hb4.
-    PARAMETERS: p_val04 TYPE text04 VISIBLE LENGTH 24 MODIF ID hb4.
+    PARAMETERS: p_val04 TYPE text40 VISIBLE LENGTH 24 MODIF ID hb4.
     SELECTION-SCREEN COMMENT 73(2) t_act04 FOR FIELD p_act04 MODIF ID hb4.
     PARAMETERS: p_act04 AS CHECKBOX MODIF ID hb4 DEFAULT 'X'.
     SELECTION-SCREEN PUSHBUTTON 79(4) t_btn04 USER-COMMAND bt4 MODIF ID hb4.
@@ -727,9 +727,9 @@ CLASS lcl_pretty_json IMPLEMENTATION.
   METHOD pretty.
 
     "cloud
-    DATA(json_xstring) = cl_abap_conv_codepage=>create_out( )->convert( json ).
+    "DATA(json_xstring) = cl_abap_conv_codepage=>create_out( )->convert( json ).
     "on_premise
-    "DATA(json_xstring) = cl_abap_codepage=>convert_to( json_string_in ).
+    DATA(json_xstring) = cl_abap_codepage=>convert_to( json ).
 
     "Check and pretty print JSON
 
@@ -742,9 +742,9 @@ CLASS lcl_pretty_json IMPLEMENTATION.
     reader->skip_node( writer ).
 
     "cloud
-    DATA(json_formatted_string) = cl_abap_conv_codepage=>create_in( )->convert( CAST cl_sxml_string_writer( writer )->get_output( ) ).
+    "DATA(json_formatted_string) = cl_abap_conv_codepage=>create_in( )->convert( CAST cl_sxml_string_writer( writer )->get_output( ) ).
     "on premise
-    "DATA(json_formatted_string) = cl_abap_codepage=>convert_from( CAST cl_sxml_string_writer( writer )->get_output( ) ).
+    DATA(json_formatted_string) = cl_abap_codepage=>convert_from( CAST cl_sxml_string_writer( writer )->get_output( ) ).
 
     pretty_json = escape( val = json_formatted_string format = cl_abap_format=>e_xml_text  ).
 
