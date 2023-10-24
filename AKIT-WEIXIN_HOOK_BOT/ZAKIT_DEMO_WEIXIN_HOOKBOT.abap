@@ -5,157 +5,313 @@ REPORT zakit_demo_weixin_hookbot.
 " 官方文档: https://developer.work.weixin.qq.com/document/path/91770
 " 编写时间: 2023.05.22
 
-DATA: gv_url   TYPE string VALUE `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=???`.
-DATA: gr_weixin TYPE REF TO zcl_akit_weixin_hook_bot.
+*&----------------------------------------------------------------------
+*                     Tables
+*&----------------------------------------------------------------------
+TABLES: sscrfields.
+
+*&----------------------------------------------------------------------
+*                     Types
+*&----------------------------------------------------------------------
+
+*&----------------------------------------------------------------------
+*                     Variables
+*&----------------------------------------------------------------------
+DATA: gt_exclude TYPE TABLE OF sy-ucomm.
+
+DATA: gr_docking TYPE REF TO cl_gui_docking_container.
+DATA: gr_splitter TYPE REF TO cl_gui_splitter_container.
+
+DATA: gr_edit_o TYPE REF TO cl_gui_textedit.
+
+DATA: BEGIN OF gs_docker_status,
+        visible TYPE abap_bool VALUE abap_true,
+      END OF gs_docker_status.
+
+CLASS lcl_pretty_json DEFINITION DEFERRED.
 
 *&----------------------------------------------------------------------
 *                     Select Screen
 *&----------------------------------------------------------------------
 SELECTION-SCREEN BEGIN OF BLOCK blck1 WITH FRAME.
-  SELECTION-SCREEN BEGIN OF LINE. " 文本
-    SELECTION-SCREEN COMMENT 5(23) t_text FOR FIELD p_text.
-    PARAMETERS: p_text RADIOBUTTON GROUP gp1 DEFAULT 'X'.
-  SELECTION-SCREEN END OF LINE.
+  SELECTION-SCREEN BEGIN OF LINE.
+    SELECTION-SCREEN COMMENT 2(8) t_url FOR FIELD p_url.
+    PARAMETERS: p_url TYPE text180 MEMORY ID url.
 
-  SELECTION-SCREEN BEGIN OF LINE. " markdown
-    SELECTION-SCREEN COMMENT 5(23) t_mark FOR FIELD p_mark.
-    PARAMETERS: p_mark RADIOBUTTON GROUP gp1.
-  SELECTION-SCREEN END OF LINE.
+    SELECTION-SCREEN COMMENT 58(5) t_type FOR FIELD p_type.
+    PARAMETERS: p_type TYPE text15 AS LISTBOX VISIBLE LENGTH 10 USER-COMMAND ctype.
 
-  SELECTION-SCREEN BEGIN OF LINE. " 图片
-    SELECTION-SCREEN COMMENT 5(23) t_image FOR FIELD p_image.
-    PARAMETERS: p_image RADIOBUTTON GROUP gp1.
-  SELECTION-SCREEN END OF LINE.
+    SELECTION-SCREEN COMMENT 78(3) t_auth FOR FIELD p_auth.
+    PARAMETERS: p_auth AS CHECKBOX USER-COMMAND auth.
 
-  SELECTION-SCREEN BEGIN OF LINE. " 图文
-    SELECTION-SCREEN COMMENT 5(23) t_news FOR FIELD p_news.
-    PARAMETERS: p_news RADIOBUTTON GROUP gp1.
   SELECTION-SCREEN END OF LINE.
-
-  SELECTION-SCREEN BEGIN OF LINE. " 文件
-    SELECTION-SCREEN COMMENT 5(23) t_file FOR FIELD p_file.
-    PARAMETERS: p_file RADIOBUTTON GROUP gp1.
-  SELECTION-SCREEN END OF LINE.
-
-  SELECTION-SCREEN BEGIN OF LINE. " 文本卡片
-    SELECTION-SCREEN COMMENT 5(23) t_textc FOR FIELD p_textc.
-    PARAMETERS: p_textc RADIOBUTTON GROUP gp1.
-  SELECTION-SCREEN END OF LINE.
-
-  SELECTION-SCREEN BEGIN OF LINE. " 图文卡片
-    SELECTION-SCREEN COMMENT 5(23) t_newsc FOR FIELD p_newsc.
-    PARAMETERS: p_newsc RADIOBUTTON GROUP gp1.
-  SELECTION-SCREEN END OF LINE.
-
 SELECTION-SCREEN END OF BLOCK blck1.
 
 SELECTION-SCREEN BEGIN OF BLOCK blck2 WITH FRAME.
-  SELECTION-SCREEN COMMENT 5(50) t_desc.
+  SELECTION-SCREEN BEGIN OF LINE.
+    SELECTION-SCREEN COMMENT 2(8) t_token FOR FIELD p_token MODIF ID aut.
+    PARAMETERS: p_token TYPE text40 MODIF ID aut.
+  SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN END OF BLOCK blck2.
+
+SELECTION-SCREEN FUNCTION KEY 1.
+
+SELECTION-SCREEN BEGIN OF BLOCK blck3 WITH FRAME.
+  SELECTION-SCREEN COMMENT 5(50) t_desc.
+SELECTION-SCREEN END OF BLOCK blck3.
 
 *&----------------------------------------------------------------------
 *                     Initialization
 *&----------------------------------------------------------------------
 INITIALIZATION.
-  t_text  = '文本'(001).
-  t_mark  = 'markdown'(002).
-  t_image = '图片'(003).
-  t_news  = '图文'(004).
-  t_file  = '文件'(005).
-  t_textc = '文本卡片'(006).
-  t_newsc = '图文卡片'(007).
+  t_url  = 'URL'.
+  t_type = '类型'.
+  t_auth = '认证'.
+  t_token = '加签'.
 
-  t_desc  = '推送测试，需要先按自定义机器人获取参数的方法更改程序一部分参数'(008).
+  " 下拉框
+  CALL FUNCTION 'VRM_SET_VALUES'
+    EXPORTING
+      id     = 'P_TYPE'
+      values = VALUE vrm_values( ( key = 'text'          text = '文本' )
+                                 ( key = 'markdown'      text = 'markdown' )
+                                 ( key = 'image'         text = '图片' )
+                                 ( key = 'news'          text = '图文' )
+                                 ( key = 'file'          text = '文件' )
+                                 ( key = 'template_card1' text = '文本卡片' )
+                                 ( key = 'template_card2' text = '图文卡片' ) ).
+
+  t_desc  = '推送测试，需要先按自定义机器人获取参数的方法更改一部分参数'.
+
+  " --> 执行按钮
+  APPEND 'ONLI' TO gt_exclude.
+  CALL FUNCTION 'RS_SET_SELSCREEN_STATUS'
+    EXPORTING
+      p_status  = sy-pfkey
+    TABLES
+      p_exclude = gt_exclude.
+  " <--
+
+  sscrfields-functxt_01 = VALUE smp_dyntxt(
+    quickinfo = '测试执行'
+    text      = '执行' ).
 
 *&----------------------------------------------------------------------
-*                     Start-Of-Selection
+*                     At Selection-Screen Output
 *&----------------------------------------------------------------------
-START-OF-SELECTION.
+AT SELECTION-SCREEN OUTPUT.
 
-  PERFORM frm_init.
-
-  " 文本
-  IF p_text = 'X'.
-    PERFORM frm_push_text.
+  IF gr_docking IS INITIAL.
+    " docker 初始化
+    gr_docking = NEW #( repid = sy-repid dynnr = '1000' extension = 305 side  = cl_gui_docking_container=>dock_at_bottom ).
   ENDIF.
 
-  " 富文本
-  IF p_mark = 'X'.
-    PERFORM frm_push_markdown.
+  IF gr_splitter IS INITIAL.
+    gr_splitter = NEW #( parent = gr_docking rows = 1 columns = 1 ).
+
+    gr_edit_o = NEW #(
+      parent = gr_splitter->get_container( row = 1 column = 1 )
+    ).
+
   ENDIF.
 
-  " 图片
-  IF p_image = 'X'.
-    PERFORM frm_push_image.
+  LOOP AT SCREEN.
+    IF screen-name = 'P_AUTH'.
+      screen-input = 0.
+      MODIFY SCREEN.
+    ENDIF.
+
+    IF p_auth = '' AND screen-group1 = 'AUT'.
+      screen-active = 0.
+      MODIFY SCREEN.
+    ENDIF.
+
+    IF screen-name = 'P_URL'.
+      screen-required = 2.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+*&----------------------------------------------------------------------
+*                     At Selection-Screen
+*&----------------------------------------------------------------------
+AT SELECTION-SCREEN.
+
+  IF sy-ucomm = 'FC01'.
+    " 检查输入
+    PERFORM frm_input_check.
+    " 发起请求
+    PERFORM frm_send_request.
   ENDIF.
 
-  " 图文
-  IF p_news = 'X'.
-    PERFORM frm_push_news.
+  IF sy-ucomm = 'CTYPE'.
+    PERFORM frm_set_demo_json.
   ENDIF.
 
-  IF p_file = 'X'.
-    PERFORM frm_push_file.
+  IF p_auth = ''.
+    CLEAR p_token.
   ENDIF.
 
-  " 文本卡片
-  IF p_textc = 'X'.
-    PERFORM frm_push_text_notice.
-  ENDIF.
+*&----------------------------------------------------------------------
+*                     Class definition
+*&----------------------------------------------------------------------
+CLASS lcl_pretty_json DEFINITION.
+  PUBLIC SECTION.
 
-  " 图文卡片
-  IF p_newsc = 'X'.
-    PERFORM frm_push_news_notice.
-  ENDIF.
+    CLASS-METHODS: pretty IMPORTING json               TYPE string
+                          RETURNING VALUE(pretty_json) TYPE string.
+ENDCLASS.
 
 *&---------------------------------------------------------------------*
-*& Form FRM_INIT
+*& Form frm_input_check
 *&---------------------------------------------------------------------*
-*&  初始化
+*&  检查输入
 *&---------------------------------------------------------------------*
-FORM frm_init .
-  cl_demo_input=>add_field( CHANGING field = gv_url ).
-  cl_demo_input=>request( ).
+FORM frm_input_check .
 
-  IF gv_url IS INITIAL.
-    MESSAGE 'GV_URL IS INPUT REQUERED' TYPE 'S' DISPLAY LIKE 'E'.
-    STOP.
+  " 屏幕中 url 必输检查
+  IF p_url IS INITIAL.
+    MESSAGE 'url必输，请输入url!' TYPE 'E'.
   ENDIF.
 
-  " 测试需要先将下面的参数更改为自己的
-  " 相关参数获取方法 https://developer.work.weixin.qq.com/document/path/91770
-  gr_weixin = NEW zcl_akit_weixin_hook_bot(
-    url   = gv_url
-  ).
+  IF p_type IS INITIAL.
+    MESSAGE '请选择 type 类型' TYPE 'E'.
+  ENDIF.
 
 ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_send_request
+*&---------------------------------------------------------------------*
+*&  发起请求
+*&---------------------------------------------------------------------*
+FORM frm_send_request .
+
+  DATA: lv_json TYPE string.
+
+  " 发出去的内容
+  gr_edit_o->get_textstream( IMPORTING text = lv_json ).
+  cl_gui_cfw=>flush( ).
+
+  " 调用方法
+  DATA(lr_bot) = NEW zcl_akit_weixin_hook_bot( url = |{ p_url }| ).
+
+  CASE p_type.
+    WHEN 'template_card1' OR 'template_card2'.
+      DATA(ls_result) = lr_bot->push( content = lv_json
+                                     msg_type = `template_card` ).
+
+      IF ls_result-type = 'S'.
+        MESSAGE ls_result-message TYPE 'S'.
+      ELSE.
+        MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
+      ENDIF.
+
+    WHEN 'image'.
+      PERFORM frm_push_image USING lr_bot.
+    WHEN 'file'.
+      PERFORM frm_push_file USING lr_bot.
+    WHEN OTHERS.
+      ls_result = lr_bot->push( content = lv_json
+                               msg_type = |{ p_type }| ).
+
+      IF ls_result-type = 'S'.
+        MESSAGE ls_result-message TYPE 'S'.
+      ELSE.
+        MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
+      ENDIF.
+
+  ENDCASE.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_set_demo_json
+*&---------------------------------------------------------------------*
+*&  设置 demo json
+*&---------------------------------------------------------------------*
+FORM frm_set_demo_json .
+
+  DATA: lv_json TYPE string.
+
+  IF gs_docker_status-visible = abap_false.
+    gs_docker_status-visible = abap_true.
+    gr_docking->set_visible( abap_true ).
+  ENDIF.
+
+  CASE p_type.
+    WHEN 'text'.          " 文本
+      PERFORM frm_push_text USING lv_json.
+    WHEN 'markdown'.      " markdown
+      PERFORM frm_push_markdown USING lv_json.
+    WHEN 'image'.         " 图片
+      gs_docker_status-visible = abap_false.
+      gr_docking->set_visible( abap_false ).
+
+    WHEN 'news'.          " 图文
+      PERFORM frm_push_news USING lv_json.
+    WHEN 'file'.          " 文件
+      gs_docker_status-visible = abap_false.
+      gr_docking->set_visible( abap_false ).
+
+    WHEN 'template_card1'. " 文本卡片
+      PERFORM frm_push_text_notice USING lv_json.
+    WHEN 'template_card2'. " 图文卡片
+      PERFORM frm_push_news_notice USING lv_json.
+    WHEN OTHERS.
+  ENDCASE.
+
+  IF lv_json IS NOT INITIAL.
+    TRY.
+        lv_json = lcl_pretty_json=>pretty( lv_json ).
+      CATCH cx_root.
+    ENDTRY.
+    gr_edit_o->set_textstream( EXPORTING text = lv_json ).
+  ENDIF.
+
+ENDFORM.
+
+CLASS lcl_pretty_json IMPLEMENTATION.
+  METHOD pretty.
+
+    "cloud
+    DATA(json_xstring) = cl_abap_conv_codepage=>create_out( )->convert( json ).
+    "on_premise
+    "DATA(json_xstring) = cl_abap_codepage=>convert_to( json_string_in ).
+
+    "Check and pretty print JSON
+
+    DATA(reader) = cl_sxml_string_reader=>create( json_xstring ).
+    DATA(writer) = CAST if_sxml_writer(
+                          cl_sxml_string_writer=>create( type = if_sxml=>co_xt_json ) ).
+    writer->set_option( option = if_sxml_writer=>co_opt_linebreaks ).
+    writer->set_option( option = if_sxml_writer=>co_opt_indent ).
+    reader->next_node( ).
+    reader->skip_node( writer ).
+
+    "cloud
+    DATA(json_formatted_string) = cl_abap_conv_codepage=>create_in( )->convert( CAST cl_sxml_string_writer( writer )->get_output( ) ).
+    "on premise
+    "DATA(json_formatted_string) = cl_abap_codepage=>convert_from( CAST cl_sxml_string_writer( writer )->get_output( ) ).
+
+    pretty_json = escape( val = json_formatted_string format = cl_abap_format=>e_xml_text  ).
+
+  ENDMETHOD.
+ENDCLASS.
+
 *&---------------------------------------------------------------------*
 *& Form FRM_PUSH_TEXT
 *&---------------------------------------------------------------------*
 *&  文本推送
 *&---------------------------------------------------------------------*
-FORM frm_push_text .
-  DATA: lv_content TYPE string.
+FORM frm_push_text USING p_json TYPE string.
 
   " https://developer.work.weixin.qq.com/document/path/91770#%E6%96%87%E6%9C%AC%E7%B1%BB%E5%9E%8B
   " 支持 @群成员
 
-  lv_content = `{`
+  p_json = `{`
   && cl_abap_char_utilities=>cr_lf && `    "content": "广州今日天气：29度，大部分多云，降雨概率：60%",`
   && cl_abap_char_utilities=>cr_lf && `    "mentioned_list":["@all"],`
 * && cl_abap_char_utilities=>cr_lf && `    "mentioned_mobile_list":["13800001111","@all"]`
   && cl_abap_char_utilities=>cr_lf && `}`.
-
-  DATA(ls_result) = gr_weixin->push(
-    msg_type = `text`
-     content = lv_content
-  ).
-
-  IF ls_result-type = 'S'.
-    MESSAGE ls_result-message TYPE 'S'.
-  ELSE.
-    MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
-  ENDIF.
 
 ENDFORM.
 *&---------------------------------------------------------------------*
@@ -163,30 +319,17 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *& markdown 推送
 *&---------------------------------------------------------------------*
-FORM frm_push_markdown .
+FORM frm_push_markdown USING p_json TYPE string.
 
   " https://developer.work.weixin.qq.com/document/path/91770#markdown%E7%B1%BB%E5%9E%8B
   " 支持 @群成员
 
-  DATA: lv_post TYPE string.
-
-  lv_post = `{`
+  p_json = `{`
   && cl_abap_char_utilities=>cr_lf && `    "content": "实时新增用户反馈<font color=\"warning\">132例</font>，请相关同事注意。\n`
   && cl_abap_char_utilities=>cr_lf && `     >类型:<font color=\"comment\">用户反馈</font>`
   && cl_abap_char_utilities=>cr_lf && `     >普通用户反馈:<font color=\"comment\">117例</font>`
   && cl_abap_char_utilities=>cr_lf && `     >VIP用户反馈:<font color=\"comment\">15例</font>"`
   && cl_abap_char_utilities=>cr_lf && `}`.
-
-  DATA(ls_result) = gr_weixin->push(
-    msg_type = 'markdown'
-    content  = lv_post
-  ).
-
-  IF ls_result-type = 'S'.
-    MESSAGE ls_result-message TYPE 'S'.
-  ELSE.
-    MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
-  ENDIF.
 
 ENDFORM.
 *&---------------------------------------------------------------------*
@@ -194,7 +337,7 @@ ENDFORM.
 *&---------------------------------------------------------------------*
 *&  推送图片
 *&---------------------------------------------------------------------*
-FORM frm_push_image .
+FORM frm_push_image USING pr_bot TYPE REF TO zcl_akit_weixin_hook_bot.
 
   " 注：图片（base64编码前）最大不能超过2M，支持JPG,PNG格式
 
@@ -255,7 +398,7 @@ FORM frm_push_image .
   CONCATENATE LINES OF lt_file_data INTO lv_xstring IN BYTE MODE.
 
   " 发送
-  DATA(ls_result) = gr_weixin->push(
+  DATA(ls_result) = pr_bot->push(
     msg_type = 'image'
     content  = zcl_akit_weixin_hook_bot=>genimage( lv_xstring )
   ).
@@ -266,14 +409,13 @@ FORM frm_push_image .
     MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
   ENDIF.
 
-
 ENDFORM.
 *&---------------------------------------------------------------------*
 *& Form frm_push_news
 *&---------------------------------------------------------------------*
 *&  推送图文
 *&---------------------------------------------------------------------*
-FORM frm_push_news .
+FORM frm_push_news USING p_json TYPE string.
 
   " https://developer.work.weixin.qq.com/document/path/91770#%E5%9B%BE%E6%96%87%E7%B1%BB%E5%9E%8B
 
@@ -282,9 +424,7 @@ FORM frm_push_news .
   " 描述，不超过512个字节，超过会自动截断
   " 图文消息的图片链接，支持JPG、PNG格式，较好的效果为大图 1068*455，小图150*150。
 
-  DATA: lv_content TYPE string.
-
-  lv_content = `{`
+  p_json = `{`
   && cl_abap_char_utilities=>cr_lf && `   "articles" : [`
   && cl_abap_char_utilities=>cr_lf && `       {`
   && cl_abap_char_utilities=>cr_lf && `           "title" : "中秋节礼品领取",`
@@ -295,24 +435,13 @@ FORM frm_push_news .
   && cl_abap_char_utilities=>cr_lf && `    ]`
   && cl_abap_char_utilities=>cr_lf && `}`.
 
-  DATA(ls_result) = gr_weixin->push(
-    msg_type = 'news'
-    content = lv_content
-  ).
-
-  IF ls_result-type = 'S'.
-    MESSAGE ls_result-message TYPE 'S'.
-  ELSE.
-    MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
-  ENDIF.
-
 ENDFORM.
 *&---------------------------------------------------------------------*
 *& Form frm_push_file
 *&---------------------------------------------------------------------*
 *&  文件推送
 *&---------------------------------------------------------------------*
-FORM frm_push_file .
+FORM frm_push_file USING pr_bot TYPE REF TO zcl_akit_weixin_hook_bot.
 
   " 注：图片（base64编码前）最大不能超过2M，支持JPG,PNG格式
 
@@ -380,7 +509,7 @@ FORM frm_push_file .
   ENDIF.
 
   " 发送
-  DATA(ls_file) = gr_weixin->fileupload(
+  DATA(ls_file) = pr_bot->fileupload(
     raw = VALUE #(
       filename     = lv_filename
       content_type = `file`
@@ -393,7 +522,7 @@ FORM frm_push_file .
     RETURN.
   ENDIF.
 
-  DATA(ls_result) = gr_weixin->push(
+  DATA(ls_result) = pr_bot->push(
     msg_type = 'file'
     content  = |\{ "media_id": "{ ls_file-media_id }" \}|
   ).
@@ -404,22 +533,19 @@ FORM frm_push_file .
     MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
   ENDIF.
 
-
 ENDFORM.
 *&---------------------------------------------------------------------*
 *& Form frm_push_text_notice
 *&---------------------------------------------------------------------*
 *&  文本卡片
 *&---------------------------------------------------------------------*
-FORM frm_push_text_notice .
+FORM frm_push_text_notice USING p_json TYPE string.
 
   " https://developer.work.weixin.qq.com/document/path/91770#%E6%96%87%E6%9C%AC%E9%80%9A%E7%9F%A5%E6%A8%A1%E7%89%88%E5%8D%A1%E7%89%87
 
   " 相对示例有删减内容
 
-  DATA: lv_content TYPE string.
-
-  lv_content = `{`
+  p_json = `{`
   && cl_abap_char_utilities=>cr_lf && `    "card_type":"text_notice",`
   && cl_abap_char_utilities=>cr_lf && `    "source":{`
   && cl_abap_char_utilities=>cr_lf && `        "icon_url":"https://wework.qpic.cn/wwpic/252813_jOfDHtcISzuodLa_1629280209/0",`
@@ -455,32 +581,19 @@ FORM frm_push_text_notice .
   && cl_abap_char_utilities=>cr_lf && `    }`
   && cl_abap_char_utilities=>cr_lf && `}`.
 
-  DATA(ls_result) = gr_weixin->push(
-    msg_type = 'template_card'
-    content = lv_content
-  ).
-
-  IF ls_result-type = 'S'.
-    MESSAGE ls_result-message TYPE 'S'.
-  ELSE.
-    MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
-  ENDIF.
-
 ENDFORM.
 *&---------------------------------------------------------------------*
 *& Form frm_push_news_notice
 *&---------------------------------------------------------------------*
 *&  图文卡片
 *&---------------------------------------------------------------------*
-FORM frm_push_news_notice .
+FORM frm_push_news_notice USING p_json TYPE string.
 
   " https://developer.work.weixin.qq.com/document/path/91770#%E5%9B%BE%E6%96%87%E5%B1%95%E7%A4%BA%E6%A8%A1%E7%89%88%E5%8D%A1%E7%89%87
 
   " 相对示例有删减内容
 
-  DATA: lv_content TYPE string.
-
-  lv_content = `{`
+  p_json = `{`
   && cl_abap_char_utilities=>cr_lf && `    "card_type":"news_notice",`
   && cl_abap_char_utilities=>cr_lf && `    "source":{`
   && cl_abap_char_utilities=>cr_lf && `        "icon_url":"https://wework.qpic.cn/wwpic/252813_jOfDHtcISzuodLa_1629280209/0",`
@@ -534,16 +647,5 @@ FORM frm_push_news_notice .
   && cl_abap_char_utilities=>cr_lf && `        "pagepath":"PAGEPATH"`
   && cl_abap_char_utilities=>cr_lf && `    }`
   && cl_abap_char_utilities=>cr_lf && `}`.
-
-  DATA(ls_result) = gr_weixin->push(
-    msg_type = 'template_card'
-    content = lv_content
-  ).
-
-  IF ls_result-type = 'S'.
-    MESSAGE ls_result-message TYPE 'S'.
-  ELSE.
-    MESSAGE ls_result-message TYPE 'S' DISPLAY LIKE 'E'.
-  ENDIF.
 
 ENDFORM.
