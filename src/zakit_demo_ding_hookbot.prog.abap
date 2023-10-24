@@ -1,9 +1,10 @@
-REPORT zakit_demo_feishu_hookbot.
+REPORT zakit_demo_ding_hookbot.
 
-" 飞书 hook bot 使用样例
+" 钉钉 hookbot 使用样例
 
-" 官方文档: https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN#383d6e48
-" 编写时间: 2023.05.17
+" 官方文档: https://open.dingtalk.com/document/robots/custom-robot-access
+" 编写时间: 2023.05.31
+
 
 *&----------------------------------------------------------------------
 *                     Tables
@@ -35,7 +36,7 @@ SELECTION-SCREEN BEGIN OF BLOCK blck1 WITH FRAME.
     PARAMETERS: p_url TYPE text180 MEMORY ID url.
 
     SELECTION-SCREEN COMMENT 58(5) t_type FOR FIELD p_type.
-    PARAMETERS: p_type TYPE text12 AS LISTBOX VISIBLE LENGTH 10 USER-COMMAND ctype.
+    PARAMETERS: p_type TYPE text10 AS LISTBOX VISIBLE LENGTH 10 USER-COMMAND ctype.
 
     SELECTION-SCREEN COMMENT 78(3) t_auth FOR FIELD p_auth.
     PARAMETERS: p_auth AS CHECKBOX USER-COMMAND auth.
@@ -52,14 +53,11 @@ SELECTION-SCREEN END OF BLOCK blck2.
 
 SELECTION-SCREEN FUNCTION KEY 1.
 
-SELECTION-SCREEN BEGIN OF BLOCK blck3 WITH FRAME.
-  SELECTION-SCREEN COMMENT 5(50) t_desc .
-SELECTION-SCREEN END OF BLOCK blck3.
-
 *&----------------------------------------------------------------------
 *                     Initialization
 *&----------------------------------------------------------------------
 INITIALIZATION.
+
   t_url  = 'URL'.
   t_type = '类型'.
   t_auth = '认证'.
@@ -69,13 +67,11 @@ INITIALIZATION.
   CALL FUNCTION 'VRM_SET_VALUES'
     EXPORTING
       id     = 'P_TYPE'
-      values = VALUE vrm_values( ( key = 'text'    text = '文本' )
-                                 ( key = 'post'    text = '富文本' )
-                                 ( key = 'image'   text = '图片' )
-                                 ( key = 'share_chat'    text = '分享群名片' )
-                                 ( key = 'interactive'   text = '消息卡片' ) ).
-
-  t_desc  = '推送测试，需要先按自定义机器人获取参数的方法更改一部分参数'.
+      values = VALUE vrm_values( ( key = 'text'       text = 'text' )
+                                 ( key = 'link'       text = 'link' )
+                                 ( key = 'markdown'   text = 'markdown' )
+                                 ( key = 'actionCard' text = 'actionCard' )
+                                 ( key = 'feedCard'   text = 'feedCard' ) ).
 
   " --> 执行按钮
   APPEND 'ONLI' TO gt_exclude.
@@ -141,6 +137,7 @@ AT SELECTION-SCREEN.
     CLEAR p_token.
   ENDIF.
 
+
 *&----------------------------------------------------------------------
 *                     Class definition
 *&----------------------------------------------------------------------
@@ -182,11 +179,11 @@ FORM frm_send_request .
   cl_gui_cfw=>flush( ).
 
   " 调用方法
-  DATA(lr_bot) = NEW zcl_akit_feishu_hook_bot( url = |{ p_url }|
+  DATA(lr_bot) = NEW zcl_akit_ding_hookbot( url = |{ p_url }|
                                           token = |{ p_token }| ).
 
-  " 启用token 由于编写系统时间比实际时间慢 1小时 17分钟 50秒
-  " lr_bot->fix_time = 1 * 60 * 60 + 17 * 60 + 50.
+  " 启用token由于编写系统时间比实际时间慢需修正 1小时 18分钟 41秒 毫秒 => 修正到毫秒
+  " lr_bot->fix_time = 1 * 60 * 60 + 18 * 60 + 41 + '0.100'.
 
   DATA(ls_result) = lr_bot->push( content = lv_json
                                  msg_type = |{ p_type }| ).
@@ -208,16 +205,57 @@ FORM frm_set_demo_json .
   DATA: lv_json TYPE string.
 
   CASE p_type.
-    WHEN `text`. " 文本
-      lv_json = `{ "text":"测试" }`.
-    WHEN `post`. " 富文本
-      PERFORM frm_push_post USING lv_json.
-    WHEN `image`. " 图片
-      PERFORM frm_push_image USING lv_json.
-    WHEN `share_chat`. " 分享群名片
-      PERFORM frm_push_share_chat USING lv_json.
-    WHEN `interactive`. " 消息卡片
-      PERFORM frm_push_interactive USING lv_json.
+    WHEN `text`.
+      lv_json = `{ "content":"我就是我, 不一样的烟火" }`.
+    WHEN `link`.
+      lv_json = `{`
+      && `    "text": "这个即将发布的新版本，创始人xx称它为红树林。而在此之前，每当面临重大升级，产品经理们都会取一个应景的代号，这一次，为什么是红树林", `
+      && `    "title": "时代的火车向前开", `
+      && `    "picUrl": "", `
+      && `    "messageUrl":  "https://www.dingtalk.com/s?__biz=MzA4NjMwMTA2Ng==&mid=2650316842&idx=1&sn=`
+      && `60da3ea2b29f1dcc43a7c8e4a7c97a16&scene=2&srcid=09189AnRJEdIiWVaKltFzNTw&from=timeline&isappinstalled=`
+      && `0&key=&ascene=2&uin=&devicetype=android-23&version=26031933&nettype=WIFI"`
+      && `}`.
+    WHEN `markdown`.
+      lv_json = `{`
+      && `    "title":"杭州天气",`
+      && `    "text": "#### 杭州天气\n > 9度，西北风1级，空气良89，`
+      && `相对温度73%\n > ![screenshot](https://img.alicdn.com/tfs/TB1NwmBEL9TBuNjy1zbXXXp`
+      && `epXa-2400-1218.png)\n > ###### 10点20分发布 [天气](https://www.dingtalk.com) \n"`
+      && `}`.
+    WHEN `actionCard`.
+      lv_json = `{`
+      && `    "title": "我 20 年前想打造一间苹果咖啡厅，而它正是 Apple Store 的前身", `
+      && `    "text": "![screenshot](https://img.alicdn.com/tfs/TB1NwmBEL9TBuNjy1zbXXXpepXa-2400-1218.png) \n\n #`
+      && `### 乔布斯 20 年前想打造的苹果咖啡厅 \n\n Apple Store 的设计正从原来满满的科技感走向生活化，而其生活化的走向其实`
+      && `可以追溯到 20 年前苹果一个建立咖啡馆的计划", `
+      && `    "btnOrientation": "0", `
+      && `    "btns": [`
+      && `        {`
+      && `            "title": "内容不错", `
+      && `            "actionURL": "https://www.dingtalk.com/"`
+      && `        }, `
+      && `        {`
+      && `            "title": "不感兴趣", `
+      && `            "actionURL": "https://www.dingtalk.com/"`
+      && `        }`
+      && `    ]`
+      && `}`.
+    WHEN `feedCard`.
+      lv_json = `{`
+      && `    "links": [`
+      && `        {`
+      && `            "title": "时代的火车向前开1", `
+      && `            "messageURL": "https://www.dingtalk.com/", `
+      && `            "picURL": "https://img.alicdn.com/tfs/TB1NwmBEL9TBuNjy1zbXXXpepXa-2400-1218.png"`
+      && `        },`
+      && `        {`
+      && `            "title": "时代的火车向前开2", `
+      && `            "messageURL": "https://www.dingtalk.com/", `
+      && `            "picURL": "https://img.alicdn.com/tfs/TB1NwmBEL9TBuNjy1zbXXXpepXa-2400-1218.png"`
+      && `        }`
+      && `    ]`
+      && `}`.
     WHEN OTHERS.
   ENDCASE.
 
@@ -259,108 +297,3 @@ CLASS lcl_pretty_json IMPLEMENTATION.
 
   ENDMETHOD.
 ENDCLASS.
-
-
-*&---------------------------------------------------------------------*
-*& Form frm_push_post
-*&---------------------------------------------------------------------*
-*& 富文本
-*&---------------------------------------------------------------------*
-FORM frm_push_post USING p_json TYPE string.
-
-  " 只支持标题、不带格式的文本、图片、链接、at人样式。
-  " 更复杂的带格式的内容建议使用消息卡片实现。
-
-  " 自定义机器人仅支持通过 open_id @ 特定人员
-  " https://open.feishu.cn/document/home/user-identity-introduction/open-id
-  " 更多富文本信息、
-  " https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/im-v1/message/create_json
-
-  p_json = `{`
-  && cl_abap_char_utilities=>cr_lf && ` "post": {`
-  && cl_abap_char_utilities=>cr_lf && `   "zh_cn": {`
-  && cl_abap_char_utilities=>cr_lf && `     "title": "项目更新通知",`
-  && cl_abap_char_utilities=>cr_lf && `     "content": [`
-  && cl_abap_char_utilities=>cr_lf && `       [{`
-  && cl_abap_char_utilities=>cr_lf && `           "tag": "text",`
-  && cl_abap_char_utilities=>cr_lf && `           "text": "项目有更新: "`
-  && cl_abap_char_utilities=>cr_lf && `         },`
-  && cl_abap_char_utilities=>cr_lf && `         {`
-  && cl_abap_char_utilities=>cr_lf && `           "tag": "a",`
-  && cl_abap_char_utilities=>cr_lf && `           "text": "请查看",`
-  && cl_abap_char_utilities=>cr_lf && `           "href": "http://www.example.com/"`
-  && cl_abap_char_utilities=>cr_lf && `         },`
-  && cl_abap_char_utilities=>cr_lf && `         {`
-  && cl_abap_char_utilities=>cr_lf && `           "tag": "at",`
-  && cl_abap_char_utilities=>cr_lf && `           "user_id": "ou_18eac8********17ad4f02e8bbbb"`
-  && cl_abap_char_utilities=>cr_lf && `         }`
-  && cl_abap_char_utilities=>cr_lf && `       ]`
-  && cl_abap_char_utilities=>cr_lf && `     ]`
-  && cl_abap_char_utilities=>cr_lf && `   }`
-  && cl_abap_char_utilities=>cr_lf && ` }`
-  && cl_abap_char_utilities=>cr_lf && `}`.
-
-ENDFORM.
-*&---------------------------------------------------------------------*
-*& Form frm_push_share_chat
-*&---------------------------------------------------------------------*
-*&  推送分享会话
-*&---------------------------------------------------------------------*
-FORM frm_push_share_chat USING p_json TYPE string.
-
-  p_json = `{ "share_chat_id": "oc_f5b1a7eb27ae2c7b6adc2a74faf339ff" }`.
-
-ENDFORM.
-*&---------------------------------------------------------------------*
-*& Form frm_push_image
-*&---------------------------------------------------------------------*
-*&  推送图片
-*&---------------------------------------------------------------------*
-FORM frm_push_image USING p_json TYPE string.
-
-  " 需要创建 机器人应用上传图片 从而获取 image_key
-  " https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/image/create
-
-  p_json = `{ "image_key": "img_ecffc3b9-8f14-400f-a014-05eca1a4310g" }`.
-
-ENDFORM.
-*&---------------------------------------------------------------------*
-*& Form frm_push_interactive
-*&---------------------------------------------------------------------*
-*&  推送消息卡片
-*&---------------------------------------------------------------------*
-FORM frm_push_interactive USING p_json TYPE string.
-
-  " 可视化生成卡片
-  " https://open.feishu.cn/tool/cardbuilder?from=custom_bot_doc
-
-  p_json = `{`
-  && cl_abap_char_utilities=>cr_lf && `  "elements": [{`
-  && cl_abap_char_utilities=>cr_lf && `    "tag": "div",`
-  && cl_abap_char_utilities=>cr_lf && `    "text": {`
-  && cl_abap_char_utilities=>cr_lf && `      "content": "**西湖**，位于浙江省杭州市西湖区龙井路1号，杭州市区西部，`
-  && `景区总面积49平方千米，汇水面积为21.22平方千米，湖面面积为6.38平方千米。",`
-  && cl_abap_char_utilities=>cr_lf && `      "tag": "lark_md"`
-  && cl_abap_char_utilities=>cr_lf && `    }`
-  && cl_abap_char_utilities=>cr_lf && `  }, {`
-  && cl_abap_char_utilities=>cr_lf && `    "actions": [{`
-  && cl_abap_char_utilities=>cr_lf && `      "tag": "button",`
-  && cl_abap_char_utilities=>cr_lf && `      "text": {`
-  && cl_abap_char_utilities=>cr_lf && `        "content": "更多景点介绍 :玫瑰:",`
-  && cl_abap_char_utilities=>cr_lf && `        "tag": "lark_md"`
-  && cl_abap_char_utilities=>cr_lf && `      },`
-  && cl_abap_char_utilities=>cr_lf && `      "url": "https://www.example.com",`
-  && cl_abap_char_utilities=>cr_lf && `      "type": "default",`
-  && cl_abap_char_utilities=>cr_lf && `      "value": {}`
-  && cl_abap_char_utilities=>cr_lf && `    }],`
-  && cl_abap_char_utilities=>cr_lf && `    "tag": "action"`
-  && cl_abap_char_utilities=>cr_lf && `  }],`
-  && cl_abap_char_utilities=>cr_lf && `  "header": {`
-  && cl_abap_char_utilities=>cr_lf && `    "title": {`
-  && cl_abap_char_utilities=>cr_lf && `      "content": "今日旅游推荐",`
-  && cl_abap_char_utilities=>cr_lf && `      "tag": "plain_text"`
-  && cl_abap_char_utilities=>cr_lf && `    }`
-  && cl_abap_char_utilities=>cr_lf && `  }`
-  && cl_abap_char_utilities=>cr_lf && `} `.
-
-ENDFORM.

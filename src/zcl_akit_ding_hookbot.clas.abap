@@ -1,4 +1,4 @@
-CLASS zcl_akit_feishu_hook_bot DEFINITION
+CLASS zcl_akit_ding_hookbot DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC .
@@ -12,10 +12,17 @@ CLASS zcl_akit_feishu_hook_bot DEFINITION
         message TYPE bapi_msg,
       END OF ty_result .
     TYPES:
-      BEGIN OF ty_feishu_result,
-        code TYPE i,
-        msg  TYPE string,
-      END OF ty_feishu_result .
+      BEGIN OF ty_ding_result,
+        errcode TYPE i,
+        errmsg  TYPE string,
+      END OF ty_ding_result .
+    TYPES:
+      BEGIN OF ty_at,
+        " @ 特定人员
+        is_at_all   TYPE abap_bool,
+        at_user_ids TYPE STANDARD TABLE OF string WITH EMPTY KEY,
+        at_mobiles  TYPE STANDARD TABLE OF string WITH EMPTY KEY,
+      END OF ty_at .
 
     DATA:
       BEGIN OF botv,
@@ -26,7 +33,7 @@ CLASS zcl_akit_feishu_hook_bot DEFINITION
     DATA result TYPE ty_result .
     DATA status_code TYPE i .
     " fix time
-    DATA fix_time TYPE timestamp .
+    DATA fix_time TYPE p LENGTH 10 DECIMALS 3.
 
     METHODS constructor
       IMPORTING
@@ -35,6 +42,7 @@ CLASS zcl_akit_feishu_hook_bot DEFINITION
     METHODS push
       IMPORTING
         !content      TYPE string
+        !at           TYPE ty_at OPTIONAL
         !msg_type     TYPE string DEFAULT 'text'
       RETURNING
         VALUE(result) TYPE ty_result .
@@ -42,8 +50,10 @@ CLASS zcl_akit_feishu_hook_bot DEFINITION
       IMPORTING
         !ijson       TYPE string
         !msg_type    TYPE string DEFAULT 'text'
+        !at          TYPE ty_at OPTIONAL
       RETURNING
         VALUE(rjson) TYPE string .
+    METHODS gensign .
   PROTECTED SECTION.
   PRIVATE SECTION.
 
@@ -65,7 +75,6 @@ CLASS zcl_akit_feishu_hook_bot DEFINITION
 
     DATA send_base TYPE ty_send_base .
 
-    METHODS gensign .
     METHODS post
       IMPORTING
         !url        TYPE string
@@ -78,7 +87,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_AKIT_FEISHU_HOOK_BOT IMPLEMENTATION.
+CLASS ZCL_AKIT_DING_HOOKBOT IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -91,24 +100,27 @@ CLASS ZCL_AKIT_FEISHU_HOOK_BOT IMPLEMENTATION.
 
   METHOD genjson_str.
 
-    " 生成报文
+    DATA: lv_at TYPE string.
 
-    IF me->send_base-sign IS INITIAL.
+    " @
+    IF at IS NOT INITIAL.
+      lv_at = /ui2/cl_json=>serialize(
+         EXPORTING data = at
+            pretty_name = /ui2/cl_json=>pretty_mode-camel_case  ).
+
       rjson = `{`
-      && |  "msg_type": "{ msg_type }",|
-      && |  "{ COND string( WHEN msg_type = `interactive` THEN `card` ELSE `content` ) }": |
+      && |  "msgtype": "{ msg_type }",|
+      && |  "at": { lv_at },|
+      && |  "{ msg_type }": |
       && ijson
       && `}`.
     ELSE.
       rjson = `{`
-      && |  "timestamp": "{ me->send_base-timestamp }",|
-      && |  "sign": "{ me->send_base-sign }",|
-      && |  "msg_type": "{ msg_type }",|
-      && |  "{ COND string( WHEN msg_type = `interactive` THEN `card` ELSE `content` ) }": |
+      && |  "msgtype": "{ msg_type }",|
+      && |  "{ msg_type }": |
       && ijson
       && `}`.
     ENDIF.
-
 
   ENDMETHOD.
 
@@ -117,43 +129,59 @@ CLASS ZCL_AKIT_FEISHU_HOOK_BOT IMPLEMENTATION.
 
     " 签名生成
 
-    DATA: lv_timestamp TYPE timestamp.
+    DATA: lv_timestampl TYPE timestampl,
+          lv_timestamp  TYPE timestamp,
+          lv_cstamp     TYPE string,
+          lv_msecond    TYPE i.
     DATA: lv_sign TYPE string.
-    DATA: lv_sign_key_x  TYPE xstring,
-          lv_hmac_result TYPE string.
+    DATA: lv_hmac_result TYPE string.
 
     CHECK me->botv-token IS NOT INITIAL.
 
-    GET TIME STAMP FIELD lv_timestamp.
+    GET TIME STAMP FIELD lv_timestampl.
 
     " 计算时戳 秒（从 19700101 开始）
-    CONVERT TIME STAMP lv_timestamp TIME ZONE ' ' INTO DATE DATA(lv_date)
+    CONVERT TIME STAMP lv_timestampl TIME ZONE ' ' INTO DATE DATA(lv_date)
                                                        TIME DATA(lv_time).
 
     lv_timestamp = lv_time.
     lv_timestamp = lv_timestamp + lv_date * 86400.
     lv_timestamp = lv_timestamp - ( CONV datum( '19700101' ) * 86400 ).
 
+    " 毫秒
+    lv_cstamp = lv_timestampl.
+    SPLIT lv_cstamp AT '.' INTO TABLE DATA(lt_val).
+    IF sy-subrc = 0.
+      lv_msecond = substring( val = |{ VALUE #( lt_val[ 2 ] OPTIONAL ) WIDTH = 3 PAD = '0' }|
+                              off = 0
+                              len = 3 ).
+    ENDIF.
+
+    lv_timestamp = lv_timestamp * 1000 + lv_msecond. " + 毫秒
+
     " 针对系统时间不准增加的时间处理
     IF me->fix_time IS NOT INITIAL.
-      lv_timestamp = lv_timestamp + me->fix_time.
+      lv_timestamp = lv_timestamp + me->fix_time * 1000.
     ENDIF.
 
     " 加密
     lv_sign = |{ lv_timestamp }\n{ me->botv-token }|.
 
-    lv_sign_key_x = cl_abap_hmac=>string_to_xstring( lv_sign ).
+    TRY.
+        cl_abap_hmac=>calculate_hmac_for_raw(
+          EXPORTING
+                if_algorithm           = 'SHA256'
+                if_key                 = cl_abap_hmac=>string_to_xstring( lv_sign )
+                if_data                = cl_abap_hmac=>string_to_xstring( me->botv-token )
+              IMPORTING
+                ef_hmacb64string       = lv_hmac_result
+        ).
+      CATCH cx_abap_message_digest.
+        " pass
+    ENDTRY.
 
-    cl_abap_hmac=>calculate_hmac_for_char(
-      EXPORTING
-            if_algorithm           = 'SHA256'           "Hash Algorithm
-            if_key                 = lv_sign_key_x      "HMAC Key
-            if_data                = ''                 "Data
-          IMPORTING
-            ef_hmacb64string       = lv_hmac_result     "HMAC value as base64-encoded string
-    ).
-
-    me->send_base-sign = lv_hmac_result.
+    " urlencode
+    me->send_base-sign = cl_http_utility=>if_http_utility~escape_url( lv_hmac_result ).
     me->send_base-timestamp = lv_timestamp.
 
   ENDMETHOD.
@@ -271,23 +299,43 @@ CLASS ZCL_AKIT_FEISHU_HOOK_BOT IMPLEMENTATION.
 
   METHOD push.
 
-    " 文档: https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN#da123a1f
+    " 文档:
+    "  - 说明 https://open.dingtalk.com/document/robots/custom-robot-access
+    "  - 加密 https://open.dingtalk.com/document/robots/customize-robot-security-settings
+
+    " 每分钟最多发送20条消息，如果超过20条，会限流10分钟
 
     " 生成发送数据
     DATA: lv_res_string TYPE string,
           lv_req_string TYPE string.
-    DATA: ls_res TYPE ty_feishu_result.
+    DATA: ls_res TYPE ty_ding_result.
 
     CHECK content IS NOT INITIAL.
+
+    CHECK msg_type = `text`
+       OR msg_type = `link`
+       OR msg_type = `markdown`
+       OR msg_type = `actionCard`
+       OR msg_type = `feedCard`.
+
+    IF at IS NOT INITIAL.
+      CHECK msg_type = `text`
+         OR msg_type = `markdown`.
+    ENDIF.
 
     " 生成密匙
     me->gensign( ).
 
     lv_req_string = me->genjson_str( ijson = content
-                                  msg_type = msg_type ).
+                                  msg_type = msg_type
+                                        at = at ).
 
     " 发送消息
     lv_res_string = me->post( url = me->botv-url
+                           params = COND #( WHEN me->botv-token IS NOT INITIAL
+                                            THEN VALUE #(
+                                      ( key = `timestamp` value = me->send_base-timestamp )
+                                      ( key = `sign`      value = me->send_base-sign ) ) )
                              json = lv_req_string ).
 
     " 返回消息处理
@@ -300,8 +348,8 @@ CLASS ZCL_AKIT_FEISHU_HOOK_BOT IMPLEMENTATION.
       EXPORTING json = lv_res_string
        CHANGING data = ls_res ).
 
-    result-type = COND #( WHEN ls_res-code = 0 THEN 'S' ELSE 'E' ).
-    result-message = ls_res-msg.
+    result-type = COND #( WHEN ls_res-errcode = 0 THEN 'S' ELSE 'E' ).
+    result-message = ls_res-errmsg.
 
   ENDMETHOD.
 ENDCLASS.
