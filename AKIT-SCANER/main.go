@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -62,11 +63,19 @@ func main() {
 		go processFolder(&wg, folderPath, config.RegexPattern, progressChan, matchesChan)
 	}
 
+	var maxprogress int
+
 	// 启动goroutine，监听进度信息
 	go func() {
 		for progress := range progressChan {
-			fmt.Println("Progress:", progress)
+			// 计算需要填充的空格数量
+			maxprogress = max(maxprogress, len(progress))
+			padnumb := maxprogress - len(progress)
+			padding := strings.Repeat(" ", padnumb)
+			fmt.Printf("\r%s%s", progress, padding)
+			// fmt.Printf("\r%s", progress)
 		}
+		fmt.Println()
 	}()
 
 	// 启动goroutine，处理匹配结果
@@ -75,6 +84,7 @@ func main() {
 			if matchResult.Success {
 				// 写入匹配到的数据到 CSV 文件
 				csvWriter.Write([]string{matchResult.FilePath, matchResult.MatchedData})
+				csvWriter.Flush() // 立即刷新缓冲区以确保进度实时显示
 			}
 		}
 	}()
@@ -133,7 +143,7 @@ func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, progress
 		}
 
 		// 发送进度信息
-		progressChan <- fmt.Sprintf("Folder: %s, File: %s, Progress: %d/%d", folderPath, filePath, i+1, totalFiles)
+		progressChan <- fmt.Sprintf("Folder: %s, \tFile: %s, \tProgress: %d/%d", folderPath, filePath, i+1, totalFiles)
 	}
 
 	// 发送完成信息
@@ -166,4 +176,11 @@ func findMatches(pattern, content string) []string {
 	re := regexp.MustCompile(pattern)
 	matches := re.FindAllString(content, -1)
 	return matches
+}
+
+func max(a int, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
