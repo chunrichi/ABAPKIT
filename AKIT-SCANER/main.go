@@ -15,6 +15,7 @@ type Config struct {
 	FolderPaths  []string `json:"folderPaths"`
 	RegexPattern string   `json:"regexPattern"`
 	OutputFile   string   `json:"outputFile"`
+	ExcludeDirs  []string `json:"excludeDirs"`
 }
 
 // MatchResult 结构用于表示匹配结果
@@ -60,7 +61,7 @@ func main() {
 	// 遍历所有文件夹路径，启动异步处理
 	for _, folderPath := range config.FolderPaths {
 		wg.Add(1)
-		go processFolder(&wg, folderPath, config.RegexPattern, progressChan, matchesChan)
+		go processFolder(&wg, folderPath, config.RegexPattern, config.ExcludeDirs, progressChan, matchesChan)
 	}
 
 	var maxprogress int
@@ -114,7 +115,7 @@ func readConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, progressChan chan string, matchesChan chan MatchResult) {
+func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, excludeDirs []string, progressChan chan string, matchesChan chan MatchResult) {
 	defer wg.Done()
 
 	// 获取目录中的所有文件
@@ -129,6 +130,19 @@ func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, progress
 
 	// 遍历所有文件，进行正则匹配并写入 CSV 文件
 	for i, filePath := range filePaths {
+		// 检查是否在排除列表中
+		exclude := false
+		for _, excludeDir := range excludeDirs {
+			if strings.Contains(filePath, excludeDir) {
+				exclude = true
+				break
+			}
+		}
+		if exclude {
+			// 排除子目录 跳过处理
+			continue
+		}
+
 		content, err := os.ReadFile(filePath)
 		if err != nil {
 			progressChan <- fmt.Sprintf("Error reading file %s: %v", filePath, err)
