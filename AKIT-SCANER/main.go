@@ -16,6 +16,13 @@ type Config struct {
 	OutputFile   string   `json:"outputFile"`
 }
 
+// MatchResult 结构用于表示匹配结果
+type MatchResult struct {
+	FilePath    string
+	MatchedData string
+	Success     bool
+}
+
 func main() {
 	print("\tABAP Scaner\n")
 
@@ -29,8 +36,10 @@ func main() {
 	// 创建等待数组，用于等待所有 goroutine 完成
 	var wg sync.WaitGroup
 
-	// 创建通道用于接收进度信息
+	// 创建通道 用于接收进度信息
 	progressChan := make(chan string)
+	// 创建通道 用于接收匹配结果
+	matchesChan := make(chan MatchResult)
 
 	// 打开 CSV 文件用于写入
 	csvFile, err := os.Create(config.OutputFile)
@@ -47,10 +56,10 @@ func main() {
 	// 写入 CSV 标题行
 	csvWriter.Write([]string{"File Path", "Matched Data"})
 
-	// 便利所有文件夹路径，启动异步处理
+	// 遍历所有文件夹路径，启动异步处理
 	for _, folderPath := range config.FolderPaths {
 		wg.Add(1)
-		go processFolder(&wg, folderPath, config.RegexPattern, csvWriter, progressChan)
+		go processFolder(&wg, folderPath, config.RegexPattern, progressChan, matchesChan)
 	}
 
 	// 启动goroutine，监听进度信息
@@ -60,11 +69,22 @@ func main() {
 		}
 	}()
 
+	// 启动goroutine，处理匹配结果
+	go func() {
+		for matchResult := range matchesChan {
+			if matchResult.Success {
+				// 写入匹配到的数据到 CSV 文件
+				csvWriter.Write([]string{matchResult.FilePath, matchResult.MatchedData})
+			}
+		}
+	}()
+
 	// 等待所有goroutine完成
 	wg.Wait()
 
-	// 关闭进度通道
+	// 关闭进度通道和匹配结果通道
 	close(progressChan)
+	close(matchesChan)
 
 	fmt.Println("Task completed successfully.")
 }
@@ -84,7 +104,7 @@ func readConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, csvWriter *csv.Writer, progressChan chan string) {
+func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, progressChan chan string, matchesChan chan MatchResult) {
 	defer wg.Done()
 
 	// 获取目录中的所有文件
@@ -107,13 +127,13 @@ func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, csvWrite
 
 		// 正则匹配
 		matches := findMatches(regexPattern, string(content))
-		if len(matches) > 0 {
-			// 写入匹配到的数据到 CSV 文件
-			csvWriter.Write([]string{filePath, matches[0]}) // 这里只写入了第一个匹配项，你可以根据实际需求调整
+		for _, match := range matches {
+			// 发送匹配结果
+			matchesChan <- MatchResult{FilePath: filePath, MatchedData: match, Success: true}
 		}
 
 		// 发送进度信息
-		progressChan <- fmt.Sprintf("Folder: %s, Progress: %d/%d", folderPath, i+1, totalFiles)
+		progressChan <- fmt.Sprintf("Folder: %s, File: %s, Progress: %d/%d", folderPath, filePath, i+1, totalFiles)
 	}
 
 	// 发送完成信息
