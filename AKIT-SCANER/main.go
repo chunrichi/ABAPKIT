@@ -164,6 +164,6 @@ func getAllFiles(folderPath string) ([]string, error) {
 // findMatches 用于正则匹配
 func findMatches(pattern, content string) []string {
 	re := regexp.MustCompile(pattern)
-	matches := re.FindStringSubmatch(content)
+	matches := re.FindAllString(content, -1)
 	return matches
 }
