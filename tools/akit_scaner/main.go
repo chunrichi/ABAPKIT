@@ -25,6 +25,27 @@ type MatchResult struct {
 	Success     bool
 }
 
+// ProgressBar 结构用于进度展示
+type ProgressBar struct {
+	FolderIndex int
+	Message     string
+}
+
+func (pb ProgressBar) Print(indexNow int) {
+	calcIndex := indexNow - pb.FolderIndex
+
+	// \033[nA 上移动n行 B 下移
+
+	if calcIndex > 0 {
+		fmt.Printf("\r\033[%vA%s", calcIndex, pb.Message)
+	} else if calcIndex < 0 {
+		fmt.Printf("\r\033[%vB%s", -calcIndex, pb.Message)
+	} else {
+		fmt.Printf("\r%s", pb.Message)
+	}
+
+}
+
 func main() {
 	print("\tABAP Scaner\n")
 
@@ -39,7 +60,7 @@ func main() {
 	var wg sync.WaitGroup
 
 	// 创建通道 用于接收进度信息
-	progressChan := make(chan string)
+	progressChan := make(chan ProgressBar)
 	// 创建通道 用于接收匹配结果
 	matchesChan := make(chan MatchResult)
 
@@ -59,25 +80,25 @@ func main() {
 	csvWriter.Write([]string{"File Path", "Matched Data"})
 
 	// 遍历所有文件夹路径，启动异步处理
-	for _, folderPath := range config.FolderPaths {
+	for folderIndex, folderPath := range config.FolderPaths {
 		wg.Add(1)
-		go processFolder(&wg, folderPath, config.RegexPattern, config.IncludeDirs, progressChan, matchesChan)
+		fmt.Printf("Folder: %-50s\n", folderPath)
+		go processFolder(&wg, folderIndex, folderPath, config.RegexPattern, config.IncludeDirs, progressChan, matchesChan)
 	}
 
-	var maxprogress int
+	nowIndex := len(config.FolderPaths)
 
 	// 启动goroutine，监听进度信息
+	var wgProgress sync.WaitGroup
 	go func() {
+		defer wgProgress.Done()
+		// 当前索引
 		for progress := range progressChan {
-			// 计算需要填充的空格数量
-			maxprogress = max(maxprogress, len(progress))
-			padnumb := maxprogress - len(progress)
-			padding := strings.Repeat(" ", padnumb)
-			fmt.Printf("\r%s%s", progress, padding)
-			// fmt.Printf("\r%s", progress)
+			progress.Print(nowIndex)
+			nowIndex = progress.FolderIndex
 		}
-		fmt.Println()
 	}()
+	wgProgress.Add(1)
 
 	// 启动goroutine，处理匹配结果
 	go func() {
@@ -97,6 +118,11 @@ func main() {
 	close(progressChan)
 	close(matchesChan)
 
+	wgProgress.Wait()
+
+	// 重置到最底层
+	ProgressBar{FolderIndex: len(config.FolderPaths) + 1, Message: ""}.Print(nowIndex)
+
 	fmt.Println("Task completed successfully.")
 }
 
@@ -115,13 +141,14 @@ func readConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, includeDirs []string, progressChan chan string, matchesChan chan MatchResult) {
+func processFolder(wg *sync.WaitGroup, folderIndex int, folderPath, regexPattern string, includeDirs []string, progressChan chan ProgressBar, matchesChan chan MatchResult) {
 	defer wg.Done()
 
 	// 获取目录中的所有文件
 	filePaths, err := getAllFiles(folderPath)
 	if err != nil {
-		progressChan <- fmt.Sprintf("Error getting file paths in %s: %v", folderPath, err)
+		progressChan <- ProgressBar{FolderIndex: folderIndex,
+			Message: fmt.Sprintf("Error getting file paths in %s: %v", folderPath, err)}
 		return
 	}
 
@@ -134,7 +161,8 @@ func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, includeD
 			// 获取相对路径
 			relPath, err := filepath.Rel(folderPath, filePath)
 			if err != nil {
-				progressChan <- fmt.Sprintf("Error getting relative path for %s: %v", filePath, err)
+				progressChan <- ProgressBar{FolderIndex: folderIndex,
+					Message: fmt.Sprintf("Error getting relative path for %s: %v", filePath, err)}
 				continue
 			}
 
@@ -155,7 +183,8 @@ func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, includeD
 
 		content, err := os.ReadFile(filePath)
 		if err != nil {
-			progressChan <- fmt.Sprintf("Error reading file %s: %v", filePath, err)
+			progressChan <- ProgressBar{FolderIndex: folderIndex,
+				Message: fmt.Sprintf("Error reading file %s: %v", filePath, err)}
 			continue
 		}
 
@@ -167,11 +196,13 @@ func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, includeD
 		}
 
 		// 发送进度信息
-		progressChan <- fmt.Sprintf("Folder: %s, \tFile: %s, \tProgress: %d/%d", folderPath, filePath, i+1, totalFiles)
+		progressChan <- ProgressBar{FolderIndex: folderIndex,
+			Message: fmt.Sprintf("Folder: %-50s\t, Progress: %d/%d", folderPath, i+1, totalFiles)}
 	}
 
 	// 发送完成信息
-	progressChan <- fmt.Sprintf("Folder: %s, Completed", folderPath)
+	progressChan <- ProgressBar{FolderIndex: folderIndex,
+		Message: fmt.Sprintf("Folder: %-50s\t, Completed! %10s", folderPath, "")}
 }
 
 // getAllFiles 用于获取指定目录下的所有文件
@@ -203,7 +234,7 @@ func findMatches(pattern, content string) []string {
 	return matches
 }
 
-func max(a int, b int) int {
+func max(a int32, b int32) int32 {
 	if a > b {
 		return a
 	}
