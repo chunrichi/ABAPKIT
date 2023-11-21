@@ -1,0 +1,38 @@
+<!-- web/templates/index.html -->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Image Gallery</title>
+</head>
+
+<body>
+    <h1>Image Gallery</h1>
+
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <label for="comment">Comment:</label>
+        <input type="text" name="comment" id="comment" required>
+        <br>
+        <label for="image">Image:</label>
+        <input type="file" name="image" id="image" accept="image/*" required>
+        <br>
+        <button type="submit">Upload</button>
+    </form>
+
+    <hr>
+
+    <h2>Images and Comments</h2>
+    {{ range $filename, $comment := .Comments }}
+    <div>
+        <img src="/uploads/{{ $filename }}" alt="Image">
+        <p>{{ $comment }}</p>
+    </div>
+    <hr>
+    {{ end }}
+
+    <form action="/export" method="get">
+        <button type="submit">Export Images</button>
+    </form>
+</body>
+
+</html>
