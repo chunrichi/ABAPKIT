@@ -4,6 +4,12 @@
 
 <head>
     <title>Image Gallery</title>
+    <style>
+        .thumbnail {
+            max-width: 100px;
+            max-height: 100px;
+        }
+    </style>
 </head>
 
 <body>
@@ -22,13 +28,9 @@
     <hr>
 
     <h2>Images and Comments</h2>
-    {{ range $filename, $comment := .Comments }}
-    <div>
-        <img src="/uploads/{{ $filename }}" alt="Image">
-        <p>{{ $comment }}</p>
+    <div id="imageGallery">
+        <!-- 图片展示区域 -->
     </div>
-    <hr>
-    {{ end }}
 
     <form action="/export" method="get">
         <button type="submit">Export Images</button>
@@ -42,22 +44,79 @@
                 if (item.kind === 'file') {
                     var blob = item.getAsFile();
 
-                    // 创建一个 FormData 对象
                     var formData = new FormData();
                     formData.append('comment', document.getElementById('comment').value);
                     formData.append('image', blob, 'pasted_image.png');
 
-                    // 使用 XMLHttpRequest 或 Fetch API 发送 FormData 对象
                     var xhr = new XMLHttpRequest();
                     xhr.open('POST', '/upload', true);
                     xhr.onload = function () {
-                        // 请求成功的处理逻辑
                         console.log(xhr.responseText);
+                        // 刷新图片展示，但不清空整个页面
+                        refreshImageGallery(false);
                     };
                     xhr.send(formData);
                 }
             }
         });
+
+        // 自动刷新图片展示
+        function refreshImageGallery(clearPage) {
+            var imageGallery = document.getElementById('imageGallery');
+            // 判断是否要清空整个页面
+            if (clearPage) {
+                document.body.innerHTML = '';
+            } else {
+                // 清空原有内容
+                imageGallery.innerHTML = '';
+            }
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/', true);
+            xhr.onload = function () {
+                if (clearPage) {
+                    // 如果要清空整个页面，则直接将返回的 HTML 放入 body
+                    document.body.innerHTML = xhr.responseText;
+                } else {
+                    // 解析返回的 JSON 数据
+                    var data = JSON.parse(xhr.responseText);
+
+                    // 使用数据更新图片展示
+                    for (var filename in data.Comments) {
+                        var comment = data.Comments[filename];
+                        var div = document.createElement('div');
+                        var img = document.createElement('img');
+                        img.className = 'thumbnail';
+                        img.src = '/uploads/' + filename;
+                        img.alt = 'Image';
+                        var p = document.createElement('p');
+                        p.textContent = comment;
+                        div.appendChild(img);
+                        div.appendChild(p);
+                        imageGallery.appendChild(div);
+                        var hr = document.createElement('hr');
+                        imageGallery.appendChild(hr);
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        // 粘贴图片后自动刷新页面
+        document.getElementById('uploadForm').addEventListener('submit', function (event) {
+            // 确保在表单提交后刷新页面，并清空整个页面
+            event.preventDefault();
+            refreshImageGallery(true);
+            // 可选：清空评论和文件选择框
+            document.getElementById('comment').value = '';
+            document.getElementById('image').value = '';
+        });
+
+        // 定时刷新图片展示，时间间隔为5秒
+        setInterval(function () {
+            // 刷新图片展示，但不清空整个页面
+            refreshImageGallery(false);
+        }, 5000);
     </script>
 </body>
 
