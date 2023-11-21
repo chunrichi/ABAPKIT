@@ -9,12 +9,12 @@
 <body>
     <h1>Image Gallery</h1>
 
-    <form action="/upload" method="post" enctype="multipart/form-data">
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
         <label for="comment">Comment:</label>
         <input type="text" name="comment" id="comment" required>
         <br>
         <label for="image">Image:</label>
-        <input type="file" name="image" id="image" accept="image/*" required>
+        <input type="file" name="image" id="image" accept="image/*" style="display:none;" required>
         <br>
         <button type="submit">Upload</button>
     </form>
@@ -33,6 +33,32 @@
     <form action="/export" method="get">
         <button type="submit">Export Images</button>
     </form>
+
+    <script>
+        document.addEventListener('paste', function (event) {
+            var items = (event.clipboardData || event.originalEvent.clipboardData).items;
+            for (var index in items) {
+                var item = items[index];
+                if (item.kind === 'file') {
+                    var blob = item.getAsFile();
+
+                    // 创建一个 FormData 对象
+                    var formData = new FormData();
+                    formData.append('comment', document.getElementById('comment').value);
+                    formData.append('image', blob, 'pasted_image.png');
+
+                    // 使用 XMLHttpRequest 或 Fetch API 发送 FormData 对象
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/upload', true);
+                    xhr.onload = function () {
+                        // 请求成功的处理逻辑
+                        console.log(xhr.responseText);
+                    };
+                    xhr.send(formData);
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>
