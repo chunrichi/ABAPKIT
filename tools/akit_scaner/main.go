@@ -15,7 +15,7 @@ type Config struct {
 	FolderPaths  []string `json:"folderPaths"`
 	RegexPattern string   `json:"regexPattern"`
 	OutputFile   string   `json:"outputFile"`
-	ExcludeDirs  []string `json:"excludeDirs"`
+	IncludeDirs  []string `json:"includeDirs"`
 }
 
 // MatchResult 结构用于表示匹配结果
@@ -61,7 +61,7 @@ func main() {
 	// 遍历所有文件夹路径，启动异步处理
 	for _, folderPath := range config.FolderPaths {
 		wg.Add(1)
-		go processFolder(&wg, folderPath, config.RegexPattern, config.ExcludeDirs, progressChan, matchesChan)
+		go processFolder(&wg, folderPath, config.RegexPattern, config.IncludeDirs, progressChan, matchesChan)
 	}
 
 	var maxprogress int
@@ -115,7 +115,7 @@ func readConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, excludeDirs []string, progressChan chan string, matchesChan chan MatchResult) {
+func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, includeDirs []string, progressChan chan string, matchesChan chan MatchResult) {
 	defer wg.Done()
 
 	// 获取目录中的所有文件
@@ -130,17 +130,27 @@ func processFolder(wg *sync.WaitGroup, folderPath, regexPattern string, excludeD
 
 	// 遍历所有文件，进行正则匹配并写入 CSV 文件
 	for i, filePath := range filePaths {
-		// 检查是否在排除列表中
-		exclude := false
-		for _, excludeDir := range excludeDirs {
-			if strings.Contains(filePath, excludeDir) {
-				exclude = true
-				break
+		if includeDirs != nil {
+			// 获取相对路径
+			relPath, err := filepath.Rel(folderPath, filePath)
+			if err != nil {
+				progressChan <- fmt.Sprintf("Error getting relative path for %s: %v", filePath, err)
+				continue
 			}
-		}
-		if exclude {
-			// 排除子目录 跳过处理
-			continue
+
+			// 检查是否在特定子目录中
+			inTargetDir := false
+			for _, targetDir := range includeDirs {
+				if strings.HasPrefix(relPath, targetDir) {
+					inTargetDir = true
+					break
+				}
+			}
+
+			if !inTargetDir {
+				// 如果不在特定子目录中，跳过处理
+				continue
+			}
 		}
 
 		content, err := os.ReadFile(filePath)
@@ -188,6 +198,7 @@ func getAllFiles(folderPath string) ([]string, error) {
 // findMatches 用于正则匹配
 func findMatches(pattern, content string) []string {
 	re := regexp.MustCompile(pattern)
+	// 忽略大小写在配置中设置 (?i)
 	matches := re.FindAllString(content, -1)
 	return matches
 }
