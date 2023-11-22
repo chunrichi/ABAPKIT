@@ -1,9 +1,7 @@
 package routes
 
 import (
-	"embed"
 	"fmt"
-	"html/template"
 	"io"
 	"net/http"
 	"os"
@@ -66,7 +64,7 @@ func uploadImage(c *gin.Context) {
 	c.Redirect(http.StatusSeeOther, "/")
 }
 
-func showIndex(c *gin.Context, content embed.FS) {
+func showIndex(c *gin.Context) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -77,13 +75,6 @@ func showIndex(c *gin.Context, content embed.FS) {
 		Comments: comments,
 	}
 
-	// 读取HTML模板
-	htmlTemplate, err := template.ParseFS(content, "web/templates/*.html")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
 	// 渲染HTML模板
-	htmlTemplate.ExecuteTemplate(c.Writer, "index.html", data)
+	c.HTML(200, "index.html", data)
 }
