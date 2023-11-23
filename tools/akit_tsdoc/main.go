@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"tsdoc/routes"
+	"tsdoc/scripts"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,6 +15,12 @@ import (
 var tmpl embed.FS
 
 func main() {
+
+	if len(os.Args) >= 2 {
+		// 带参数运行
+		scripts.Process(os.Args[1:])
+	}
+
 	r := gin.Default()
 
 	// 载入模板
