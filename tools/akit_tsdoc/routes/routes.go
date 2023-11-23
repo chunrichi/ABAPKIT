@@ -11,4 +11,5 @@ func SetupRoutes(r *gin.Engine) {
 	r.POST("/upload", uploadImage)
 
 	r.POST("/export", exportImages)
+	r.POST("/imagesList", loadImageList)
 }

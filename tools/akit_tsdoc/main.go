@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"html/template"
+	"net/http"
 	"os"
 	"tsdoc/routes"
 
@@ -22,6 +23,9 @@ func main() {
 	}
 
 	r.SetHTMLTemplate(htmTmpl)
+
+	// 设置静态资源目录
+	r.StaticFS("/images", http.Dir("./uploads"))
 
 	// 载入路由
 	routes.SetupRoutes(r)

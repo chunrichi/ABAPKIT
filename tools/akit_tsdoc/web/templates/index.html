@@ -3,33 +3,55 @@
 <html>
 
 <head>
-    <title>Image Gallery</title>
+    <title>akit_tsdoc</title>
     <style>
-        .thumbnail {
-            max-width: 100px;
-            max-height: 100px;
+        :root {
+            --bs-gutter-x: 0;
+        }
+
+        .container {
+            max-width: 1320px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .commentImg {
+            display: grid;
+            grid-template-columns: 2fr 8fr;
+            grid-column-gap: 5px;
+        }
+
+        .commentImg img {
+            max-height: 10em;
+            height: auto;
         }
     </style>
 </head>
 
 <body>
-    <h1>Image Gallery</h1>
+    <div class="container">
+        <h1>Image Comments</h1>
 
-    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
-        <label for="comment">Comment:</label>
-        <input type="text" name="comment" id="comment" required>
-        <br>
-        <label for="image">Image:</label>
-        <input type="file" name="image" id="image" accept="image/*" style="display:none;" required>
-        <br>
-        <button type="submit">Upload</button>
-    </form>
+        <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data"
+            style="outline: 1px solid silver; padding: 2em">
+            <label for="comment">Comment:</label>
+            <input type="text" name="comment" id="comment" required>
+            <br>
+            <label for="image">Image:</label>
+            <input type="file" name="image" id="image" accept="image/*" style="display:none;" required>
+            <br>
+            <button type="submit">Upload</button>
+        </form>
+    </div>
 
-    <hr>
+    <div class="container">
 
-    <h2>Images and Comments</h2>
-    <div id="imageGallery">
-        <!-- 图片展示区域 -->
+        <h2>Images and Comments</h2>
+        <div id="imageGallery">
+            <!-- 图片展示区域 -->
+
+        </div>
+
     </div>
 
     <form action="/export" method="get">
@@ -37,6 +59,32 @@
     </form>
 
     <script>
+        // 拉取数据图片信息
+        function loadImageList() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/imagesList', true);
+            xhr.onload = function () {
+                console.log("load image list")
+                var data = JSON.parse(xhr.responseText);
+
+                var imageGallery = document.getElementById('imageGallery');
+                for (var image in data.list) {
+                    var div = document.createElement('div')
+                    div.className = 'commentImg'
+                    var img = document.createElement('img')
+                    img.src = '/images/' + data.list[image].ImagePath
+                    img.alt = data.list[image].ImagePath
+                    var textarea = document.createElement('textarea')
+                    textarea.value = data.list[image].Comment
+                    div.appendChild(img)
+                    div.appendChild(textarea)
+                    imageGallery.appendChild(div)
+                }
+            }
+            xhr.send();
+        }
+        loadImageList()
+
         document.addEventListener('paste', function (event) {
             var items = (event.clipboardData || event.originalEvent.clipboardData).items;
             for (var index in items) {
@@ -112,11 +160,6 @@
             document.getElementById('image').value = '';
         });
 
-        // 定时刷新图片展示，时间间隔为5秒
-        setInterval(function () {
-            // 刷新图片展示，但不清空整个页面
-            refreshImageGallery(false);
-        }, 5000);
     </script>
 </body>
 
