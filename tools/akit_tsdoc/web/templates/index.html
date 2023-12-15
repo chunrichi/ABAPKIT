@@ -1,0 +1,166 @@
+<!-- web/templates/index.html -->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>akit_tsdoc</title>
+    <style>
+        :root {
+            --bs-gutter-x: 0;
+        }
+
+        .container {
+            max-width: 1320px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .commentImg {
+            display: grid;
+            grid-template-columns: 2fr 8fr;
+            grid-column-gap: 5px;
+        }
+
+        .commentImg img {
+            max-height: 10em;
+            height: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Image Comments</h1>
+
+        <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data"
+            style="outline: 1px solid silver; padding: 2em">
+            <label for="comment">Comment:</label>
+            <input type="text" name="comment" id="comment" required>
+            <br>
+            <label for="image">Image:</label>
+            <input type="file" name="image" id="image" accept="image/*" style="display:none;" required>
+            <br>
+            <button type="submit">Upload</button>
+        </form>
+    </div>
+
+    <div class="container">
+
+        <h2>Images and Comments</h2>
+        <div id="imageGallery">
+            <!-- 图片展示区域 -->
+
+        </div>
+
+    </div>
+
+    <form action="/export" method="get">
+        <button type="submit">Export Images</button>
+    </form>
+
+    <script>
+        // 拉取数据图片信息
+        function loadImageList() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/imagesList', true);
+            xhr.onload = function () {
+                console.log("load image list")
+                var data = JSON.parse(xhr.responseText);
+
+                var imageGallery = document.getElementById('imageGallery');
+                for (var image in data.list) {
+                    var div = document.createElement('div')
+                    div.className = 'commentImg'
+                    var img = document.createElement('img')
+                    img.src = '/images/' + data.list[image].ImagePath
+                    img.alt = data.list[image].ImagePath
+                    var textarea = document.createElement('textarea')
+                    textarea.value = data.list[image].Comment
+                    div.appendChild(img)
+                    div.appendChild(textarea)
+                    imageGallery.appendChild(div)
+                }
+            }
+            xhr.send();
+        }
+        loadImageList()
+
+        document.addEventListener('paste', function (event) {
+            var items = (event.clipboardData || event.originalEvent.clipboardData).items;
+            for (var index in items) {
+                var item = items[index];
+                if (item.kind === 'file') {
+                    var blob = item.getAsFile();
+
+                    var formData = new FormData();
+                    formData.append('comment', document.getElementById('comment').value);
+                    formData.append('image', blob, 'pasted_image.png');
+
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/upload', true);
+                    xhr.onload = function () {
+                        console.log(xhr.responseText);
+                        // 刷新图片展示，但不清空整个页面
+                        refreshImageGallery(false);
+                    };
+                    xhr.send(formData);
+                }
+            }
+        });
+
+        // 自动刷新图片展示
+        function refreshImageGallery(clearPage) {
+            var imageGallery = document.getElementById('imageGallery');
+            // 判断是否要清空整个页面
+            if (clearPage) {
+                document.body.innerHTML = '';
+            } else {
+                // 清空原有内容
+                imageGallery.innerHTML = '';
+            }
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/', true);
+            xhr.onload = function () {
+                if (clearPage) {
+                    // 如果要清空整个页面，则直接将返回的 HTML 放入 body
+                    document.body.innerHTML = xhr.responseText;
+                } else {
+                    // 解析返回的 JSON 数据
+                    var data = JSON.parse(xhr.responseText);
+
+                    // 使用数据更新图片展示
+                    for (var filename in data.Comments) {
+                        var comment = data.Comments[filename];
+                        var div = document.createElement('div');
+                        var img = document.createElement('img');
+                        img.className = 'thumbnail';
+                        img.src = '/uploads/' + filename;
+                        img.alt = 'Image';
+                        var p = document.createElement('p');
+                        p.textContent = comment;
+                        div.appendChild(img);
+                        div.appendChild(p);
+                        imageGallery.appendChild(div);
+                        var hr = document.createElement('hr');
+                        imageGallery.appendChild(hr);
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        // 粘贴图片后自动刷新页面
+        document.getElementById('uploadForm').addEventListener('submit', function (event) {
+            // 确保在表单提交后刷新页面，并清空整个页面
+            event.preventDefault();
+            refreshImageGallery(true);
+            // 可选：清空评论和文件选择框
+            document.getElementById('comment').value = '';
+            document.getElementById('image').value = '';
+        });
+
+    </script>
+</body>
+
+</html>
