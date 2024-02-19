@@ -18,6 +18,7 @@
     - [AKIT-DING-HOOK-BOT](#akit-ding-hook-bot)
     - [AKIT-FILE-SERVER](#akit-file-server)
     - [AKIT-HTTP](#akit-http)
+    - [AKIT-XML](#akit-xml)
 
 ## 工具说明
 
@@ -91,3 +92,7 @@
 简单的 `HTTP` 示例，简单的模拟了 `REST` 请求的一些比较常见的内容
 
 > 如果使用可将局部类拷出
+
+### [AKIT-XML](./AKIT-XML)
+
+简单的实现了 ABAP2XML 的转换，使用方法类似 `/UI2/CL_JSON` 但无 XML2ABAP 的转换
