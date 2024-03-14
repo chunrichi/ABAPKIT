@@ -189,6 +189,17 @@ CLASS lcl_tree_event_receiver IMPLEMENTATION.
 
     CASE fieldname.
       WHEN 'ISELF'.
+        IF line-iself IS INITIAL.
+          MESSAGE '不允许针对已释放请求进一步处理' TYPE 'S' DISPLAY LIKE 'E'.
+          RETURN.
+        ENDIF.
+
+        PERFORM frm_release_request_self USING line-transport.
+
+        CLEAR: line-iself, line-iectype, line-irelease_ectype.
+        line-dsstatus = '已释放'.
+        PERFORM frm_change_node USING line node_key.
+
       WHEN 'IECTYPE'.
         IF NOT ( line-trstatus = 'D' OR line-trstatus = 'R' ).
           MESSAGE '不允许针对已释放内容创建副本' TYPE 'S' DISPLAY LIKE 'E'.
@@ -226,7 +237,7 @@ CLASS lcl_tree_event_receiver IMPLEMENTATION.
         ENDIF.
 
         " 释放请求
-        PERFORM frm_release_request USING new-transport .
+        PERFORM frm_release_request USING new-transport.
 
         CLEAR: new-irelease_ectype.
         new-dsstatus = '已释放'.
@@ -254,7 +265,7 @@ MODULE pbo OUTPUT.
                          node_selection_mode = cl_gui_column_tree=>node_sel_mode_single
                          item_selection = 'X'
                          no_html_header = 'X'
-                         no_toolbar     = 'X'
+                         no_toolbar     = ''
     ).
 
     go_alv_tree->set_table_for_first_display(
@@ -362,7 +373,7 @@ FORM frm_get_data .
       WHEN OTHERS.
     ENDCASE.
 
-    APPEND VALUE #( sign = 'I' option = 'CP' low = |*{ <ls_normal>-transport }*| ) TO lt_range_name.
+    APPEND VALUE #( sign = 'I' option = 'CP' low = |{ <ls_normal>-transport }*| ) TO lt_range_name.
   ENDLOOP.
 
   IF p_sublk = 'X'.
@@ -375,7 +386,7 @@ FORM frm_get_data .
       INTO TABLE @DATA(lt_sub_link).
     SORT lt_sub_link BY trkorr.
 
-    lt_range_name = VALUE #( BASE lt_range_name FOR sub IN lt_sub_link ( sign = 'I' option = 'CP' low = |*{ sub-trkorr }*| ) ).
+    lt_range_name = VALUE #( BASE lt_range_name FOR sub IN lt_sub_link ( sign = 'I' option = 'CP' low = |{ sub-trkorr }*| ) ).
     SORT lt_range_name BY low.
     DELETE ADJACENT DUPLICATES FROM lt_range_name COMPARING low.
   ENDIF.
@@ -466,7 +477,7 @@ FORM frm_set_fieldcat .
 
   CHECK p_relea = ''.
 
-* PERFORM frm_set_fcat USING 'ISELF'             12 ' ' ''       '释放请求'(008)." TEXT-008. " 释放请求
+  PERFORM frm_set_fcat USING 'ISELF'             12 ' ' ''       '释放请求'(008)." TEXT-008. " 释放请求
   PERFORM frm_set_fcat USING 'IECTYPE'           12 ' ' ''       '创建副本'(009)." TEXT-009. " 创建副本
   PERFORM frm_set_fcat USING 'IRELEASE_ECTYPE'   12 ' ' ''       '副本释放'(010)." TEXT-010. " 副本释放
 
@@ -714,6 +725,29 @@ FORM frm_release_request  USING p_transport TYPE e070-trkorr.
 
 ENDFORM.
 *&---------------------------------------------------------------------*
+*& Form frm_release_request_self
+*&---------------------------------------------------------------------*
+*&  释放请求本身
+*&---------------------------------------------------------------------*
+FORM frm_release_request_self  USING p_transport.
+
+  " 先释放子请求，再进一步释放父请求
+
+  SELECT
+    trkorr
+    FROM e070
+    WHERE trstatus IN ('D','L')
+      AND strkorr = @p_transport
+    INTO TABLE @DATA(lt_sub_trkorr).
+
+  LOOP AT lt_sub_trkorr INTO DATA(ls_trkorr).
+    PERFORM frm_release_request USING ls_trkorr-trkorr.
+  ENDLOOP.
+
+  PERFORM frm_release_request USING p_transport.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
 *& Form frm_move_line2node
 *&---------------------------------------------------------------------*
 *&  将行项目写入节点
@@ -729,7 +763,9 @@ FORM frm_move_line2node  USING p_line     TYPE ty_display
       i_relat_node_key = p_node_key
       i_relationship   = cl_gui_column_tree=>relat_first_child " relat_last_child
       is_outtab_line   = p_line
-      it_item_layout   = VALUE #( ( fieldname = 'IECTYPE'  class = COND #( WHEN p_line-iectype IS NOT INITIAL
+      it_item_layout   = VALUE #( ( fieldname = 'ISELF'  class = COND #( WHEN p_line-iself IS NOT INITIAL
+                                                                           THEN cl_gui_column_tree=>item_class_link ) )
+                                  ( fieldname = 'IECTYPE'  class = COND #( WHEN p_line-iectype IS NOT INITIAL
                                                                            THEN cl_gui_column_tree=>item_class_link ) )
                                   ( fieldname = 'IRELEASE_ECTYPE'  class = COND #( WHEN p_line-irelease_ectype IS NOT INITIAL
                                                                                    THEN cl_gui_column_tree=>item_class_link ) )
@@ -759,13 +795,19 @@ FORM frm_change_node  USING p_new TYPE ty_display
     EXPORTING
       i_node_key      = p_key
       i_outtab_line   = p_new
-      it_item_layout  = VALUE #( ( fieldname = 'IECTYPE'  class = COND #( WHEN p_new-iectype IS NOT INITIAL
-                                                                          THEN cl_gui_column_tree=>item_class_link ) )
+      it_item_layout  = VALUE #( ( fieldname = 'ISELF'  class = COND #( WHEN p_new-iself IS NOT INITIAL
+                                                                          THEN cl_gui_column_tree=>item_class_link )
+                                                        u_class = 'X' )
+                                 ( fieldname = 'IECTYPE'  class = COND #( WHEN p_new-iectype IS NOT INITIAL
+                                                                          THEN cl_gui_column_tree=>item_class_link )
+                                                          u_class = 'X' )
                                  ( fieldname = 'IRELEASE_ECTYPE'  class = COND #( WHEN p_new-irelease_ectype IS NOT INITIAL
-                                                                                  THEN cl_gui_column_tree=>item_class_link ) )
+                                                                                  THEN cl_gui_column_tree=>item_class_link )
+                                                                  u_class = 'X' )
                                  ( fieldname = 'DSSTATUS' style = COND #( WHEN p_new-dsstatus = '可修改'
                                                                           THEN cl_gui_column_tree=>style_emphasized_positive
-                                                                          ELSE cl_gui_column_tree=>style_emphasized ) ) )
+                                                                          ELSE cl_gui_column_tree=>style_emphasized )
+                                                          u_style = 'X' ) )
   ).
 
 ENDFORM.

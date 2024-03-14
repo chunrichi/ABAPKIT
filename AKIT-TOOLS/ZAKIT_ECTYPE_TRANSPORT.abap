@@ -611,7 +611,7 @@ ENDFORM.
 FORM frm_display_ectype  USING p_transport TYPE ty_display-transport.
   DATA: lt_range_objname TYPE RANGE OF e071-obj_name.
 
-  lt_range_objname = VALUE #( sign = 'I' option = 'CP' ( low = |*{ p_transport }*| ) ).
+  lt_range_objname = VALUE #( sign = 'I' option = 'CP' ( low = |{ p_transport }*| ) ).
 
   IF go_popup_event IS INITIAL.
     go_popup_event = NEW #( ).
