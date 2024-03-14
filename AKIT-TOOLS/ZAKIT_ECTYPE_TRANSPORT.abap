@@ -1,4 +1,4 @@
-REPORT zakit_ectype_transport.
+REPORT zakit_ectype_transposrt.
 
 " 通过 ADT 相关类进行副本处理
 
@@ -609,9 +609,9 @@ ENDFORM.
 *&  显示关联副本
 *&---------------------------------------------------------------------*
 FORM frm_display_ectype  USING p_transport TYPE ty_display-transport.
-  DATA: lv_obj_name TYPE e071-obj_name.
+  DATA: lt_range_objname TYPE RANGE OF e071-obj_name.
 
-  lv_obj_name = '%' && p_transport && '%'.
+  lt_range_objname = VALUE #( sign = 'I' option = 'CP' ( low = |*{ p_transport }*| ) ).
 
   IF go_popup_event IS INITIAL.
     go_popup_event = NEW #( ).
@@ -619,6 +619,19 @@ FORM frm_display_ectype  USING p_transport TYPE ty_display-transport.
 
   " LOAD DATA
   IF gs_popup_data-transport <> p_transport.
+    SELECT
+     trkorr,
+     strkorr
+     FROM e070
+     WHERE strkorr = @p_transport
+     INTO TABLE @DATA(lt_sub_link).
+    SORT lt_sub_link BY trkorr.
+    IF lt_sub_link IS NOT INITIAL.
+      lt_range_objname = VALUE #( BASE lt_range_objname FOR sub IN lt_sub_link ( sign = 'I' option = 'CP' low = |*{ sub-trkorr }*| ) ).
+      SORT lt_range_objname BY low.
+      DELETE ADJACENT DUPLICATES FROM lt_range_objname COMPARING low.
+    ENDIF.
+
     SELECT FROM e071 AS e1
       INNER JOIN e070 AS e0 ON e0~trkorr = e1~trkorr
       LEFT JOIN e07t AS et ON et~trkorr = e0~trkorr AND et~langu = @sy-langu
@@ -634,8 +647,10 @@ FORM frm_display_ectype  USING p_transport TYPE ty_display-transport.
       et~as4text
       WHERE e1~pgmid = 'CORR'
         AND e1~object = 'MERG'
-        AND e1~obj_name LIKE @lv_obj_name
+        AND e1~obj_name IN @lt_range_objname
       INTO CORRESPONDING FIELDS OF TABLE @gs_popup_data-data.
+    SORT gs_popup_data-data BY trkorr DESCENDING.
+    DELETE ADJACENT DUPLICATES FROM gs_popup_data-data COMPARING trkorr.
 
     LOOP AT gs_popup_data-data REFERENCE INTO DATA(lr_data).
       IF lr_data->trstatus = 'D'.
