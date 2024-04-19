@@ -24,6 +24,8 @@ TYPES: BEGIN OF ty_display,
          iectype         TYPE icon_l4,     " 创建副本
          irelease_ectype TYPE icon_l4,     " 创建副本并释放
 
+         release_time    TYPE timestamp,   " 释放时间
+
          source          TYPE trkorr,
        END OF ty_display,
        tt_normal  TYPE SORTED TABLE OF ty_display WITH UNIQUE KEY transport,
@@ -67,7 +69,6 @@ SELECTION-SCREEN BEGIN OF BLOCK blck2 WITH FRAME.
 SELECTION-SCREEN END OF BLOCK blck2.
 
 SELECTION-SCREEN BEGIN OF BLOCK blck3 WITH FRAME.
-  PARAMETERS: p_adate AS CHECKBOX DEFAULT 'X'.
   PARAMETERS: p_sublk AS CHECKBOX DEFAULT 'X'.
 
   SELECTION-SCREEN BEGIN OF LINE.
@@ -77,6 +78,10 @@ SELECTION-SCREEN BEGIN OF BLOCK blck3 WITH FRAME.
     SELECTION-SCREEN COMMENT 22(6) com2 FOR FIELD p_day MODIF ID ley.
   SELECTION-SCREEN END OF LINE.
 SELECTION-SCREEN END OF BLOCK blck3.
+
+SELECTION-SCREEN BEGIN OF BLOCK blck4 WITH FRAME.
+  PARAMETERS: p_adate AS CHECKBOX DEFAULT 'X'.
+SELECTION-SCREEN END OF BLOCK blck4.
 
 *&----------------------------------------------------------------------
 *                     Initialization
@@ -94,6 +99,9 @@ INITIALIZATION.
   com1 = '关联副本时间限制'.
   com2 = '天'.
 
+*&----------------------------------------------------------------------
+*                     At Selection-Screen Output
+*&----------------------------------------------------------------------
 AT SELECTION-SCREEN OUTPUT.
 
   LOOP AT SCREEN.
@@ -103,6 +111,16 @@ AT SELECTION-SCREEN OUTPUT.
     ENDIF.
   ENDLOOP.
 
+  IF p_edabl = 'X'.
+    com1 = '关联副本时间限制'.
+  ELSE.
+    com1 = '时间限制'.
+  ENDIF.
+
+*&----------------------------------------------------------------------
+*                     At Selection-Screen
+*&----------------------------------------------------------------------
+AT SELECTION-SCREEN.
 
 *&----------------------------------------------------------------------
 *                     Start-Of-Selection
@@ -136,6 +154,10 @@ CLASS lcl_tree_event_receiver DEFINITION.
 
     METHODS handle_link_click
       FOR EVENT link_click OF cl_gui_alv_tree
+      IMPORTING fieldname node_key sender.
+
+    METHODS handle_item_double_click
+      FOR EVENT item_double_click OF cl_gui_alv_tree
       IMPORTING fieldname node_key sender.
 ENDCLASS.
 
@@ -254,6 +276,29 @@ CLASS lcl_tree_event_receiver IMPLEMENTATION.
       sender->expand_node( i_node_key = node_key ).
     ENDIF.
   ENDMETHOD.
+
+  METHOD handle_item_double_click.
+    DATA line TYPE ty_display.
+
+    CASE fieldname.
+      WHEN '&Hierarchy'.
+        sender->get_outtab_line( EXPORTING i_node_key = node_key
+                                 IMPORTING e_outtab_line = line ).
+
+        DATA lt_bdcdata TYPE TABLE OF bdcdata.
+
+        APPEND VALUE #( program = 'RDDM0001' dynpro = '0200' dynbegin = 'X'  ) TO lt_bdcdata.
+        APPEND VALUE #( fnam = 'BDC_OKCODE' fval = '=TSSN' ) TO lt_bdcdata.
+
+        APPEND VALUE #( program = 'RDDM0001' dynpro = '0200' dynbegin = 'X'  ) TO lt_bdcdata.
+        APPEND VALUE #( fnam = 'BDC_CURSOR' fval = 'TRDYSE01SN-TR_TRKORR' ) TO lt_bdcdata.
+        APPEND VALUE #( fnam = 'TRDYSE01SN-TR_TRKORR' fval = line-transport ) TO lt_bdcdata.
+
+        CALL TRANSACTION 'SE01' USING lt_bdcdata MODE 'E' UPDATE 'A'.
+      WHEN OTHERS.
+    ENDCASE.
+
+  ENDMETHOD.
 ENDCLASS.
 
 MODULE pbo OUTPUT.
@@ -310,7 +355,7 @@ FORM frm_get_data .
   DATA: lt_range_name TYPE RANGE OF e071-obj_name.
   DATA: lt_range_day TYPE RANGE OF datum.
 
-  IF p_lkecy = 'X'.
+  IF p_relea = 'X' AND p_lkecy = 'X'.
     lt_range_day = VALUE #( sign = 'I' option = 'GE' ( low = sy-datum - p_day ) ).
   ENDIF.
 
@@ -335,6 +380,7 @@ FORM frm_get_data .
       e07t~as4text AS description
      WHERE e070~trkorr  IN @s_trnum
        AND e070~as4user IN @s_owner
+       AND e070~as4date IN @lt_range_day
        AND ( e070~strkorr     = '' )
        AND ( e070~trstatus   IN @lt_range_status )
        AND ( e070~trfunction <> 'T' )
@@ -352,6 +398,19 @@ FORM frm_get_data .
       wrong_textflag = 1
       OTHERS         = 2.
   SORT lt_dd07v BY domvalue_l.
+
+  " 释放时间
+  IF p_relea = 'X' AND g_data_load-normal IS NOT INITIAL.
+    SELECT
+      trkorr,
+      reference
+      FROM e070a
+      FOR ALL ENTRIES IN @g_data_load-normal
+      WHERE trkorr = @g_data_load-normal-transport
+        AND attribute = 'EXPORT_TIMESTAMP'
+      INTO TABLE @DATA(lt_e070a).
+    SORT lt_e070a BY trkorr.
+  ENDIF.
 
   LOOP AT g_data_load-normal ASSIGNING FIELD-SYMBOL(<ls_normal>).
     <ls_normal>-iself                  = icon_transport.
@@ -373,8 +432,15 @@ FORM frm_get_data .
       WHEN OTHERS.
     ENDCASE.
 
+    READ TABLE lt_e070a INTO DATA(ls_e070a) WITH KEY trkorr = <ls_normal>-transport BINARY SEARCH.
+    IF sy-subrc = 0.
+      CONVERT DATE ls_e070a-reference(8) TIME ls_e070a-reference+8 INTO TIME STAMP <ls_normal>-release_time TIME ZONE 'UTC+8'.
+    ENDIF.
+
     APPEND VALUE #( sign = 'I' option = 'CP' low = |{ <ls_normal>-transport }*| ) TO lt_range_name.
   ENDLOOP.
+
+  " ---> 关联副本
 
   IF p_sublk = 'X'.
     SELECT
@@ -392,6 +458,10 @@ FORM frm_get_data .
   ENDIF.
 
   IF lt_range_name IS NOT INITIAL AND p_relea IS INITIAL.
+    IF p_lkecy = 'X'.
+      lt_range_day = VALUE #( sign = 'I' option = 'GE' ( low = sy-datum - p_day ) ).
+    ENDIF.
+
     SELECT
       e1~trkorr AS transport,
       e1~as4pos,
@@ -475,6 +545,10 @@ FORM frm_set_fieldcat .
   PERFORM frm_set_fcat USING 'CREATION_TIME'     14 'C' 'TIMS'   '创建时间'(006)." TEXT-006. " 创建日期
   PERFORM frm_set_fcat USING 'DESCRIPTION'       70 ' ' ''       '描述'(007).    " TEXT-007. " 描述
 
+  IF p_relea = 'X'.
+    PERFORM frm_set_fcat USING 'RELEASE_TIME'      22 'C' ''       '释放时间'(011)." TEXT-011. " 释放时间
+  ENDIF.
+
   CHECK p_relea = ''.
 
   PERFORM frm_set_fcat USING 'ISELF'             12 ' ' ''       '释放请求'(008)." TEXT-008. " 释放请求
@@ -516,6 +590,10 @@ FORM frm_set_fcat USING   p_fieldname
   " IF p_fieldname = 'TRANSPORT' OR ( strlen( p_fieldname ) > 7 AND p_fieldname+0(7) = 'ECTYPE_' ).
   "   <ls_fieldcat>-hotspot = 'X'.
   " ENDIF.
+
+  IF p_fieldname = 'RELEASE_TIME'.
+    <ls_fieldcat>-convexit = 'TSTRM'.
+  ENDIF.
 
 ENDFORM.
 *&---------------------------------------------------------------------*
@@ -587,6 +665,9 @@ FORM frm_register_events .
   l_event-eventid = cl_gui_column_tree=>eventid_node_double_click.
   APPEND l_event TO lt_events.
 
+  l_event-eventid = cl_gui_column_tree=>eventid_item_double_click.
+  APPEND l_event TO lt_events.
+
   l_event-eventid = cl_gui_column_tree=>eventid_link_click.
   APPEND l_event TO lt_events.
 
@@ -594,6 +675,7 @@ FORM frm_register_events .
 
   CREATE OBJECT l_event_receiver.
   SET HANDLER l_event_receiver->handle_node_double_click FOR go_alv_tree.
+  SET HANDLER l_event_receiver->handle_item_double_click FOR go_alv_tree.
   SET HANDLER l_event_receiver->handle_link_click FOR go_alv_tree.
 
 ENDFORM.
