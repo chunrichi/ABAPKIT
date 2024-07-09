@@ -266,6 +266,9 @@ CLASS ZCL_AKIT_FEISHU_HOOK_BOT IMPLEMENTATION.
 
     data = lr_http_client->response->get_cdata( ).
 
+    lr_http_client->close( ).
+    CLEAR: lr_http_client.
+
   ENDMETHOD.
 
 

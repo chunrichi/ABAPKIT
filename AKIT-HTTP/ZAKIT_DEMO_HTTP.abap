@@ -576,6 +576,9 @@ CLASS lcl_http_util IMPLEMENTATION.
 
     data = lr_http_client->response->get_cdata( ).
 
+    lr_http_client->close( ).
+    CLEAR: lr_http_client.
+
   ENDMETHOD.
 
   METHOD code_desc.
@@ -719,6 +722,9 @@ CLASS lcl_http_util IMPLEMENTATION.
     lr_http_client->response->get_status( IMPORTING code = me->status_code ).
 
     data = lr_http_client->response->get_cdata( ).
+
+    lr_http_client->close( ).
+    CLEAR: lr_http_client.
 
   ENDMETHOD.
 ENDCLASS.
