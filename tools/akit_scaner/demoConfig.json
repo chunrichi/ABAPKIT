@@ -1,6 +1,0 @@
-{
-  "folderPaths": ["D:/mycode"],
-  "regexPattern": "(?i)(?:CALL +FUNCTION +'([^Z]\\w*)')",
-  "outputFile": "./result.csv",
-  "includeDirs": ["SE24", "SE37", "SE38"]
-}
