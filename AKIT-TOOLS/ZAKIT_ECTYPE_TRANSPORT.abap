@@ -25,7 +25,10 @@ TYPES: BEGIN OF ty_display,
          ectype_number          TYPE trkorr,      " 副本编码
          ectype_status          TYPE string,      " 副本状态
 
+         release_time           TYPE timestamp,   " 释放时间
+
          release                TYPE flag,
+         box                    TYPE flag,
          color                  TYPE lvc_t_scol,  "
        END OF ty_display.
 
@@ -57,18 +60,20 @@ CLASS lcl_event_receiver DEFINITION DEFERRED.
 DATA: gs_layout   TYPE lvc_s_layo,
       gt_fieldcat TYPE lvc_t_fcat.
 DATA: gt_display TYPE TABLE OF ty_display.
+DATA: gv_pbo_ts TYPE ty_display-transport.
 
 DATA: gs_popup_data   TYPE ty_popup_data.
 DATA: go_popup_dailog TYPE REF TO cl_gui_dialogbox_container,
       go_popup_alv    TYPE REF TO cl_gui_alv_grid,
       go_popup_event  TYPE REF TO lcl_event_receiver.
+DATA: go_popup_salv TYPE REF TO cl_salv_table.
 
 *&----------------------------------------------------------------------
 *                     Select Screen
 *&----------------------------------------------------------------------
 SELECTION-SCREEN BEGIN OF BLOCK blck1 WITH FRAME.
   SELECT-OPTIONS s_trnum FOR e070-trkorr.
-  SELECT-OPTIONS s_owner FOR e070-as4user DEFAULT sy-uname.
+  SELECT-OPTIONS s_owner FOR e070-as4user.
 SELECTION-SCREEN END OF BLOCK blck1.
 
 SELECTION-SCREEN BEGIN OF BLOCK blck2 WITH FRAME.
@@ -175,6 +180,19 @@ FORM frm_get_data .
       OTHERS         = 2.
   SORT lt_dd07v BY domvalue_l.
 
+  " 释放时间
+  IF p_relea = 'X' AND gt_display IS NOT INITIAL.
+    SELECT
+      trkorr,
+      reference
+      FROM e070a
+      FOR ALL ENTRIES IN @gt_display
+      WHERE trkorr = @gt_display-transport
+        AND attribute = 'EXPORT_TIMESTAMP'
+      INTO TABLE @DATA(lt_e070a).
+    SORT lt_e070a BY trkorr.
+  ENDIF.
+
   LOOP AT gt_display ASSIGNING FIELD-SYMBOL(<ls_display>).
     <ls_display>-iself                  = icon_transport.
 
@@ -186,6 +204,12 @@ FORM frm_get_data .
     IF sy-subrc = 0.
       <ls_display>-typeshow = ls_dd07v-ddtext.
     ENDIF.
+
+    READ TABLE lt_e070a INTO DATA(ls_e070a) WITH KEY trkorr = <ls_display>-transport BINARY SEARCH.
+    IF sy-subrc = 0.
+      CONVERT DATE ls_e070a-reference(8) TIME ls_e070a-reference+8 INTO TIME STAMP <ls_display>-release_time TIME ZONE 'UTC+8'.
+    ENDIF.
+
   ENDLOOP.
 
 ENDFORM.
@@ -197,12 +221,16 @@ ENDFORM.
 FORM frm_set_fieldcat .
   REFRESH gt_fieldcat.
 
-  PERFORM frm_set_fcat USING 'TRANSPORT'              '' '' '请求'(001)." TEXT-001. " 请求
+  PERFORM frm_set_fcat USING 'TRANSPORT'              '' '' '请求______'(001)." TEXT-001. " 请求
   PERFORM frm_set_fcat USING 'TYPESHOW'               '' '' '请求类型'(002)." TEXT-002. " 请求类型
   PERFORM frm_set_fcat USING 'TARGET_SYSTEM'          '' '' '目标系统'(003)." TEXT-003. " 目标系统
   PERFORM frm_set_fcat USING 'OWNER'                  '' '' '所有者'(004)." TEXT-004. " 所有者
   PERFORM frm_set_fcat USING 'CREATION_DATE'          '' '' '创建日期'(005)." TEXT-005. " 创建日期
   PERFORM frm_set_fcat USING 'DESCRIPTION'            '' '' '描述'(006)." TEXT-006. " 描述
+
+  IF p_relea = 'X'.
+    PERFORM frm_set_fcat USING 'RELEASE_TIME'         '' '' '释放时间'(013)." TEXT-013. " 释放时间
+  ENDIF.
 
   CHECK p_relea = ''.
 
@@ -243,13 +271,18 @@ FORM frm_set_fcat USING   p_fieldname
     <ls_fieldcat>-hotspot = 'X'.
   ENDIF.
 
-  IF p_fieldname = 'TRANSPORT' OR ( strlen( p_fieldname ) > 7 AND p_fieldname+0(7) = 'ECTYPE_' ).
-    <ls_fieldcat>-hotspot = 'X'.
-  ENDIF.
+" IF p_fieldname = 'TRANSPORT' OR ( strlen( p_fieldname ) > 7 AND p_fieldname+0(7) = 'ECTYPE_' ).
+"   <ls_fieldcat>-hotspot = 'X'.
+" ENDIF.
 
   IF p_fieldname = 'TYPESHOW' OR p_fieldname = 'TARGET_SYSTEM'.
     <ls_fieldcat>-just = 'C'.
   ENDIF.
+
+  IF p_fieldname = 'RELEASE_TIME'.
+    <ls_fieldcat>-convexit = 'TSTRM'.
+  ENDIF.
+
 ENDFORM.
 *&---------------------------------------------------------------------*
 *& Form FRM_SET_LAYOUT
@@ -262,6 +295,7 @@ FORM frm_set_layout .
                        zebra = 'X'
                        cwidth_opt = 'X'
                        ctab_fname = 'COLOR'
+                       box_fname  = 'BOX'
                       ).
 ENDFORM.
 *&---------------------------------------------------------------------*
@@ -273,7 +307,17 @@ FORM frm_pf_status USING p_extab TYPE slis_t_extab.
   DATA: lt_extab TYPE slis_t_extab.
   MOVE-CORRESPONDING p_extab TO lt_extab.
 
-  SET PF-STATUS 'STANDARD' EXCLUDING lt_extab.
+  "PERFORM adapt_excluding_tab(saplslvc_fullscreen) CHANGING lt_extab[].
+
+  " SET PF-STATUS 'STANDARD' EXCLUDING lt_extab OF PROGRAM 'SAPLKKBL'.
+  SET PF-STATUS 'STANDARD'.
+
+  " 弹框显示部分逻辑
+  IF gv_pbo_ts IS NOT INITIAL.
+    "PERFORM frm_display_ectype USING gv_pbo_ts.
+  ENDIF.
+
+  CLEAR gv_pbo_ts.
 ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  FRM_USER_COMMAND
@@ -293,12 +337,14 @@ FORM frm_user_command USING p_ucomm LIKE sy-ucomm
 
       CASE ps_selfield-fieldname.
         WHEN 'IECTYPE'.
+          " 创建副本
           CHECK ps_selfield-value IS NOT INITIAL.
 
           PERFORM frm_create_request USING <ls_display>.
 
           PERFORM frm_fill_request USING <ls_display>.
         WHEN 'IRELEASE_ECTYPE'.
+          " 创建并释放
           CHECK ps_selfield-value IS NOT INITIAL.
 
           PERFORM frm_create_request USING <ls_display>.
@@ -307,6 +353,7 @@ FORM frm_user_command USING p_ucomm LIKE sy-ucomm
 
           PERFORM frm_release_request USING <ls_display>.
         WHEN 'IRELEASE_IMPORT_ECTYPE'.
+          " 创建 + 释放 + 导入
           CHECK ps_selfield-value IS NOT INITIAL.
 
           PERFORM frm_create_request USING <ls_display>.
@@ -317,14 +364,18 @@ FORM frm_user_command USING p_ucomm LIKE sy-ucomm
 
           PERFORM frm_target_import USING <ls_display>.
         WHEN 'ISELF'.
+          " 释放请求
           CHECK ps_selfield-value IS NOT INITIAL.
 
           PERFORM frm_release_self USING <ls_display>.
         WHEN 'TRANSPORT'.
+          " 跳转
           CHECK ps_selfield-value IS NOT INITIAL.
 
           PERFORM frm_call_transport USING <ls_display>-transport.
         WHEN 'ECTYPE_NUMBER'.
+          " 显示关联
+          gv_pbo_ts = <ls_display>-transport.
           PERFORM frm_display_ectype USING <ls_display>-transport.
         WHEN OTHERS.
       ENDCASE.
@@ -335,6 +386,10 @@ FORM frm_user_command USING p_ucomm LIKE sy-ucomm
       "   ELSE.
       "     ps_selfield-exit = 'X'.
       "   ENDIF.
+    WHEN 'PACK'.
+
+      PERFORM frm_btn_pack.
+
     WHEN OTHERS.
   ENDCASE.
 
@@ -362,21 +417,21 @@ FORM frm_alv_display .
 
   CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY_LVC'
     EXPORTING
-      i_save                  = 'X'
-      i_default               = 'X'
-      is_variant              = ls_variant
-      i_callback_program      = sy-repid
-      "i_callback_pf_status_set = 'FRM_PF_STATUS'
-      i_callback_user_command = 'FRM_USER_COMMAND'
-      is_layout_lvc           = gs_layout
-      it_fieldcat_lvc         = gt_fieldcat
-      it_events               = lt_events[]
-      it_event_exit           = lt_events_exit
+      i_save                   = 'X'
+      i_default                = 'X'
+      is_variant               = ls_variant
+      i_callback_program       = sy-repid
+      i_callback_pf_status_set = 'FRM_PF_STATUS'
+      i_callback_user_command  = 'FRM_USER_COMMAND'
+      is_layout_lvc            = gs_layout
+      it_fieldcat_lvc          = gt_fieldcat
+      it_events                = lt_events[]
+      it_event_exit            = lt_events_exit
     TABLES
-      t_outtab                = gt_display
+      t_outtab                 = gt_display
     EXCEPTIONS
-      program_error           = 1
-      OTHERS                  = 2.
+      program_error            = 1
+      OTHERS                   = 2.
   IF sy-subrc <> 0.
     MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
           WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
@@ -666,57 +721,192 @@ FORM frm_display_ectype  USING p_transport TYPE ty_display-transport.
     EXIT.
   ENDIF.
 
-  IF go_popup_event->dialogbox_status IS INITIAL.
-
-    go_popup_event->dialogbox_status = 'X'.
-
-    IF go_popup_dailog IS INITIAL.
-      CREATE OBJECT go_popup_dailog
+  TRY.
+      cl_salv_table=>factory(
         EXPORTING
-          top      = 150
-          left     = 150
-          lifetime = 1
-          caption  = '副本请求'(200)
-          width    = 850
-          height   = 180.
-
-      SET HANDLER go_popup_event->handle_close FOR go_popup_dailog.
-
-    ENDIF.
-
-    IF go_popup_alv IS INITIAL.
-      go_popup_alv = NEW #( i_parent = go_popup_dailog  ).
-
-      DATA(lt_fieldcat) = VALUE lvc_t_fcat(
-        ( fieldname  = 'TRKORR'    coltext = '请求'(101) )
-        ( fieldname  = 'DSSTATUS'  just = 'C' coltext = '请求状态'(102) )
-        ( fieldname  = 'TARSYSTEM' just = 'C' coltext = '目标系统'(103) )
-        ( fieldname  = 'AS4USER'   coltext = '所有者'(104) )
-        ( fieldname  = 'AS4DATE'   coltext = '创建日期'(105) )
-        ( fieldname  = 'AS4TIME'   coltext = '创建时间'(106) )
-        ( fieldname  = 'AS4TEXT'   coltext = '描述'(107) ) ).
-
-      CALL METHOD go_popup_alv->set_table_for_first_display
-        EXPORTING
-          i_save                        = 'A'
-          is_layout                     = VALUE #( zebra = 'X' sel_mode = 'D' cwidth_opt = 'X' ctab_fname = 'COLOR' )
+          list_display = ''
+        IMPORTING
+          r_salv_table = go_popup_salv
         CHANGING
-          it_outtab                     = gs_popup_data-data[]
-          it_fieldcatalog               = lt_fieldcat[]
-        EXCEPTIONS
-          invalid_parameter_combination = 1
-          program_error                 = 2
-          too_many_lines                = 3
-          OTHERS                        = 4.
-    ENDIF.
+          t_table      = gs_popup_data-data[] ).
+    CATCH cx_salv_msg.                                  "#EC NO_HANDLER
+  ENDTRY.
 
-  ELSE.
-    go_popup_dailog->set_visible( 'X' ).
-    go_popup_alv->refresh_table_display( ).
-  ENDIF.
+  DATA(lo_functions) = go_popup_salv->get_functions( ).
+  lo_functions->set_default( abap_true ).
+
+  DATA(lo_display_lay) = go_popup_salv->get_display_settings( ).
+  lo_display_lay->set_striped_pattern( cl_salv_display_settings=>true ).
+
+  go_popup_salv->set_screen_popup(
+     start_line   = 10
+     start_column = 30
+     end_line     = 20
+     end_column   = 130 ).
+
+  TRY.
+      go_popup_salv->get_columns( )->set_color_column( 'COLOR' ).
+      go_popup_salv->get_columns( )->set_optimize( abap_true ).
+    CATCH cx_salv_data_error.                           "#EC NO_HANDLER
+  ENDTRY.
+
+  DATA lo_colum TYPE REF TO cl_salv_column.
+  TRY.
+      lo_colum = go_popup_salv->get_columns( )->get_column( 'TRKORR' ).
+      lo_colum->set_short_text( '请求'(101) ).
+      lo_colum->set_medium_text( '请求'(101) ).
+      lo_colum->set_long_text( '请求'(101) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+  TRY.
+      lo_colum = go_popup_salv->get_columns( )->get_column( 'DSSTATUS' ).
+      lo_colum->set_alignment( if_salv_c_alignment=>centered ).
+      lo_colum->set_short_text( '请求状态'(102) ).
+      lo_colum->set_medium_text( '请求状态'(102) ).
+      lo_colum->set_long_text( '请求状态'(102) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+  TRY.
+      lo_colum = go_popup_salv->get_columns( )->get_column( 'TARSYSTEM' ).
+      lo_colum->set_alignment( if_salv_c_alignment=>centered ).
+      lo_colum->set_short_text( '目标系统'(103) ).
+      lo_colum->set_medium_text( '目标系统'(103) ).
+      lo_colum->set_long_text( '目标系统'(103) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+  TRY.
+      lo_colum = go_popup_salv->get_columns( )->get_column( 'AS4USER' ).
+      lo_colum->set_short_text( '所有者'(104) ).
+      lo_colum->set_medium_text( '所有者'(104) ).
+      lo_colum->set_long_text( '所有者'(104) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+  TRY.
+      lo_colum = go_popup_salv->get_columns( )->get_column( 'AS4DATE' ).
+      lo_colum->set_short_text( '创建日期'(105) ).
+      lo_colum->set_medium_text( '创建日期'(105) ).
+      lo_colum->set_long_text( '创建日期'(105) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+  TRY.
+      lo_colum = go_popup_salv->get_columns( )->get_column( 'AS4TIME' ).
+      lo_colum->set_short_text( '创建时间'(106) ).
+      lo_colum->set_medium_text( '创建时间'(106) ).
+      lo_colum->set_long_text( '创建时间'(106) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+  TRY.
+      lo_colum = go_popup_salv->get_columns( )->get_column( 'AS4TEXT' ).
+      lo_colum->set_short_text( '描述'(107) ).
+      lo_colum->set_medium_text( '描述'(107) ).
+      lo_colum->set_long_text( '描述'(107) ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      go_popup_salv->get_columns( )->get_column( 'TRSTATUS' )->set_technical( 'X' ).
+      go_popup_salv->get_columns( )->get_column( 'COLOR' )->set_technical( 'X' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  go_popup_salv->display( ).
+
+  " IF go_popup_event->dialogbox_status IS INITIAL.
+  "
+  "   go_popup_event->dialogbox_status = 'X'.
+  "
+  "   IF go_popup_dailog IS INITIAL.
+  "     CREATE OBJECT go_popup_dailog
+  "       EXPORTING
+  "         top      = 150
+  "         left     = 150
+  "         lifetime = 1
+  "         caption  = '副本请求'(200)
+  "         width    = 850
+  "         height   = 180.
+  "
+  "     SET HANDLER go_popup_event->handle_close FOR go_popup_dailog.
+  "
+  "   ENDIF.
+  "
+  "   IF go_popup_alv IS INITIAL.
+  "     go_popup_alv = NEW #( i_parent = go_popup_dailog  ).
+  "
+  "     DATA(lt_fieldcat) = VALUE lvc_t_fcat(
+  "       ( fieldname  = 'TRKORR'    coltext = '请求'(101) )
+  "       ( fieldname  = 'DSSTATUS'  just = 'C' coltext = '请求状态'(102) )
+  "       ( fieldname  = 'TARSYSTEM' just = 'C' coltext = '目标系统'(103) )
+  "       ( fieldname  = 'AS4USER'   coltext = '所有者'(104) )
+  "       ( fieldname  = 'AS4DATE'   coltext = '创建日期'(105) )
+  "       ( fieldname  = 'AS4TIME'   coltext = '创建时间'(106) )
+  "       ( fieldname  = 'AS4TEXT'   coltext = '描述'(107) ) ).
+  "
+  "     CALL METHOD go_popup_alv->set_table_for_first_display
+  "       EXPORTING
+  "         i_save                        = 'A'
+  "         is_layout                     = VALUE #( zebra = 'X' sel_mode = 'D' cwidth_opt = 'X' ctab_fname = 'COLOR' )
+  "       CHANGING
+  "         it_outtab                     = gs_popup_data-data[]
+  "         it_fieldcatalog               = lt_fieldcat[]
+  "       EXCEPTIONS
+  "         invalid_parameter_combination = 1
+  "         program_error                 = 2
+  "         too_many_lines                = 3
+  "         OTHERS                        = 4.
+  "   ENDIF.
+  "
+  "   LEAVE SCREEN.
+  " ELSE.
+  "   go_popup_dailog->set_visible( 'X' ).
+  "   go_popup_alv->refresh_table_display( ).
+  " ENDIF.
 
   "cl_gui_cfw=>flush( ).
   "go_popup_alv->set_focus( go_popup_alv ).
   "go_popup_dailog->set_focus( go_popup_dailog ).
 
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form frm_btn_pack
+*&---------------------------------------------------------------------*
+*&  打包副本
+*&---------------------------------------------------------------------*
+FORM frm_btn_pack .
+
+  IF NOT line_exists( gt_display[ box = 'X'] ).
+    MESSAGE '至少选中一行数据' TYPE 'S' DISPLAY LIKE 'E'.
+    RETURN.
+  ENDIF.
+
+  DATA: lt_text TYPE catsxt_longtext_itab,
+        lv_text TYPE as4text.
+
+  CALL FUNCTION 'CATSXT_SIMPLE_TEXT_EDITOR'
+    EXPORTING
+      im_title = '副本请求'
+    CHANGING
+      ch_text  = lt_text.
+
+  ASSIGN ('(SAPLCATSXT_UTIL)OK_CODE') TO FIELD-SYMBOL(<lv_code>).
+  IF sy-subrc = 0.
+    IF <lv_code> <> 'CX_CONT'.
+      MESSAGE '已取消' TYPE 'S' DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+  CONCATENATE LINES OF lt_text INTO lv_text.
+
+  LOOP AT gt_display ASSIGNING FIELD-SYMBOL(<ls_display>) WHERE box = 'X'.
+    CHECK <ls_display>-release IS INITIAL.
+
+    IF lv_text IS INITIAL.
+      PERFORM frm_create_request USING <ls_display>.
+      lv_text = <ls_display>-ectype_number.
+    ELSE.
+      <ls_display>-ectype_number = lv_text.
+    ENDIF.
+
+    PERFORM frm_fill_request USING <ls_display>.
+  ENDLOOP.
 ENDFORM.
