@@ -42,7 +42,7 @@ START-OF-SELECTION.
   APPEND VALUE #( id = 3 text = 'this is text 03 c' ) TO ls_list-tab001.
   APPEND VALUE #( id = 3 text = 'this is text 03 c' ) TO ls_list-tab001.
 
-  DATA(l_word_expo) = NEW zcl_akit_expo_word( ).
+  DATA(l_word_expo) = NEW zcl_akit_docx_tool( ).
 
   l_word_expo->load_file_smw0( 'ZDOCX_TEMP_001' ).
 

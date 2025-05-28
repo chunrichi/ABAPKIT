@@ -1,4 +1,4 @@
-CLASS zcl_akit_expo_word DEFINITION
+CLASS zcl_akit_docx_tool DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC .
@@ -75,11 +75,11 @@ ENDCLASS.
 
 
 
-CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
+CLASS zcl_akit_docx_tool IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Private Method ZCL_AKIT_EXPO_WORD->FIND_ATTRIBUTE_BY_NAME_NS
+* | Instance Private Method ZCL_AKIT_DOCX_TOOL->FIND_ATTRIBUTE_BY_NAME_NS
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] PNODE                          TYPE REF TO IF_IXML_NODE
 * | [--->] NAME                           TYPE        STRING
@@ -96,7 +96,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Private Method ZCL_AKIT_EXPO_WORD->FIND_SUBNODE_BY_NAME_NS
+* | Instance Private Method ZCL_AKIT_DOCX_TOOL->FIND_SUBNODE_BY_NAME_NS
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] PNODE                          TYPE REF TO IF_IXML_NODE
 * | [--->] NAME                           TYPE        STRING
@@ -114,7 +114,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Private Method ZCL_AKIT_EXPO_WORD->GET_ITERATOR_BY_NAME_NS
+* | Instance Private Method ZCL_AKIT_DOCX_TOOL->GET_ITERATOR_BY_NAME_NS
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] PNODE                          TYPE REF TO IF_IXML_NODE
 * | [--->] NAME                           TYPE        STRING
@@ -130,7 +130,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Private Method ZCL_AKIT_EXPO_WORD->GET_TAG_NODE_IF_EXITS
+* | Instance Private Method ZCL_AKIT_DOCX_TOOL->GET_TAG_NODE_IF_EXITS
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IXML_NODE                      TYPE REF TO IF_IXML_NODE
 * | [<-()] TAG_NODE                       TYPE REF TO IF_IXML_NODE
@@ -150,7 +150,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_AKIT_EXPO_WORD->LOAD_FILE_LOCAL
+* | Instance Public Method ZCL_AKIT_DOCX_TOOL->LOAD_FILE_LOCAL
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] PATH                           TYPE        STRING
 * +--------------------------------------------------------------------------------------</SIGNATURE>
@@ -209,7 +209,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_AKIT_EXPO_WORD->LOAD_FILE_SMW0
+* | Instance Public Method ZCL_AKIT_DOCX_TOOL->LOAD_FILE_SMW0
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] NAME                           TYPE        STRING
 * +--------------------------------------------------------------------------------------</SIGNATURE>
@@ -247,7 +247,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_AKIT_EXPO_WORD->O2WD
+* | Instance Public Method ZCL_AKIT_DOCX_TOOL->O2WD
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IDOC                           TYPE REF TO IF_IXML_DOCUMENT
 * | [--->] IXML                           TYPE REF TO IF_IXML
@@ -265,7 +265,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_AKIT_EXPO_WORD->PROCESS_EXPO
+* | Instance Public Method ZCL_AKIT_DOCX_TOOL->PROCESS_EXPO
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] DATA                           TYPE REF TO DATA
 * | [--->] NO_DEV_NODE                    TYPE        ABAP_BOOL (default =ABAP_TRUE)
@@ -314,7 +314,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_AKIT_EXPO_WORD->PROCESS_NODE
+* | Instance Public Method ZCL_AKIT_DOCX_TOOL->PROCESS_NODE
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IXML_NODE                      TYPE REF TO IF_IXML_NODE
 * | [--->] CURR_DATA                      TYPE REF TO DATA(optional)
@@ -368,7 +368,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Private Method ZCL_AKIT_EXPO_WORD->PROCESS_SDT
+* | Instance Private Method ZCL_AKIT_DOCX_TOOL->PROCESS_SDT
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IXML_NODE                      TYPE REF TO IF_IXML_NODE
 * | [--->] CURR_DATA                      TYPE REF TO DATA
@@ -493,7 +493,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_AKIT_EXPO_WORD->STORE
+* | Instance Public Method ZCL_AKIT_DOCX_TOOL->STORE
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] PATH                           TYPE        STRING(optional)
 * +--------------------------------------------------------------------------------------</SIGNATURE>
@@ -551,7 +551,7 @@ CLASS ZCL_AKIT_EXPO_WORD IMPLEMENTATION.
 
 
 * <SIGNATURE>---------------------------------------------------------------------------------------+
-* | Instance Public Method ZCL_AKIT_EXPO_WORD->WD2O
+* | Instance Public Method ZCL_AKIT_DOCX_TOOL->WD2O
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] XSTR                           TYPE        XSTRING
 * | [<---] ODOC                           TYPE REF TO IF_IXML_DOCUMENT

@@ -103,7 +103,7 @@ START-OF-SELECTION.
 *&---------------------------------------------------------------------*
 FORM frm_read_temp .
 
-  DATA(l_expo) = NEW zcl_akit_expo_word( ).
+  DATA(l_expo) = NEW zcl_akit_docx_tool( ).
 
   IF p_f_locl = 'X'.
     l_expo->load_file_local( |{ p_path }| ).
