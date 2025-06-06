@@ -1,8 +1,3 @@
-*&---------------------------------------------------------------------*
-*& Report ZAKIT_DOCX_READ_TEMP
-*&---------------------------------------------------------------------*
-*&
-*&---------------------------------------------------------------------*
 REPORT zakit_docx_read_temp.
 
 " 暂时只支持简单结构
@@ -23,13 +18,14 @@ DATA: gr_abap_edit TYPE REF TO cl_gui_abapedit,
 
 DATA: g_processed_gid TYPE TABLE OF i,
       g_abap_table    TYPE tt_code,
-      g_abap_code     TYPE tt_code.
+      g_abap_code     TYPE tt_code,
+      g_nested_defs   TYPE tt_code. " 存储嵌套结构定义
 
 CLASS lcl_event_receiver DEFINITION.
   PUBLIC SECTION.
     METHODS:
       handle_close
-                    FOR EVENT close OF cl_gui_dialogbox_container
+        FOR EVENT close OF cl_gui_dialogbox_container
         IMPORTING sender.
 
     DATA: dialogbox_status TYPE c.  "'X': does exist, SPACE: does not ex.
@@ -57,12 +53,12 @@ ENDCLASS.
 *                     Select Screen
 *&----------------------------------------------------------------------
 SELECTION-SCREEN BEGIN OF BLOCK blck1 WITH FRAME.
-PARAMETERS: p_f_locl RADIOBUTTON GROUP gp1 DEFAULT 'X' USER-COMMAND gp1,
-            p_f_smw0 RADIOBUTTON GROUP gp1.
+  PARAMETERS: p_f_locl RADIOBUTTON GROUP gp1 DEFAULT 'X' USER-COMMAND gp1,
+              p_f_smw0 RADIOBUTTON GROUP gp1.
 SELECTION-SCREEN END OF BLOCK blck1.
 SELECTION-SCREEN BEGIN OF BLOCK blck2 WITH FRAME.
-PARAMETERS: p_path TYPE rlgrap-filename MODIF ID pth.
-PARAMETERS: p_smw0 TYPE wwwdatatab-objid MODIF ID smw.
+  PARAMETERS: p_path TYPE rlgrap-filename MODIF ID pth.
+  PARAMETERS: p_smw0 TYPE wwwdatatab-objid MODIF ID smw.
 SELECTION-SCREEN END OF BLOCK blck2.
 
 AT SELECTION-SCREEN OUTPUT.
@@ -91,7 +87,7 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_path.
 *                     Start-of-selection
 *&----------------------------------------------------------------------
 START-OF-SELECTION.
-
+  CLEAR: g_processed_gid, g_abap_table, g_abap_code, g_nested_defs.
   PERFORM frm_read_temp.
 
   WRITE ''.
@@ -113,46 +109,58 @@ FORM frm_read_temp .
 
   DATA: l_document TYPE xstring.
 
-  l_expo->zip->get(
-    EXPORTING
-      name    = `word/document.xml`
-    IMPORTING
-      content = l_document ).
-
-  l_expo->wd2o( EXPORTING xstr = l_document
-                IMPORTING oxml = DATA(l_xml)
-                          odoc = DATA(l_doc) ).
-
-  DATA(l_root) = l_doc->get_root( ).
-
-  DATA(l_filter) = l_root->create_filter_name_ns( name      = `sdt`
-                                                  namespace = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
-
-  DATA(l_iterator) = l_root->create_iterator_filtered( filter = l_filter depth = 0 ).
-
   APPEND `TYPES: BEGIN OF TY_DATA,` TO g_abap_code.
 
-  DO.
-    DATA(l_item) = l_iterator->get_next( ).
+  LOOP AT l_expo->zip->files INTO DATA(l_file).
+    CASE l_file-name(9).
+      WHEN `word/docu` OR `word/foot` OR `word/head`.
+      WHEN OTHERS.
+        CONTINUE.
+    ENDCASE.
 
-    IF l_item IS NOT BOUND.
-      EXIT.
-    ENDIF.
+    l_expo->zip->get(
+      EXPORTING
+        name    = l_file-name
+      IMPORTING
+        content = l_document ).
 
-    DATA(l_gid) = l_item->get_gid( ).
+    l_expo->wd2o( EXPORTING xstr = l_document
+                  IMPORTING oxml = DATA(l_xml)
+                            odoc = DATA(l_doc) ).
 
-    READ TABLE g_processed_gid TRANSPORTING NO FIELDS WITH KEY table_line = l_gid.
-    IF sy-subrc = 0.
-      CONTINUE.
-    ENDIF.
+    DATA(l_root) = l_doc->get_root( ).
 
-    APPEND l_gid TO g_processed_gid.
+    DATA(l_filter) = l_root->create_filter_name_ns( name      = `sdt`
+                                                    namespace = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
 
-    PERFORM frm_read_node USING l_item g_abap_code.
-  ENDDO.
+    DATA(l_iterator) = l_root->create_iterator_filtered( filter = l_filter depth = 0 ).
+
+    DO.
+      DATA(l_item) = l_iterator->get_next( ).
+
+      IF l_item IS NOT BOUND.
+        EXIT.
+      ENDIF.
+
+      DATA(l_gid) = l_item->get_gid( ).
+
+      READ TABLE g_processed_gid TRANSPORTING NO FIELDS WITH KEY table_line = l_gid.
+      IF sy-subrc = 0.
+        CONTINUE.
+      ENDIF.
+
+      APPEND l_gid TO g_processed_gid.
+
+      PERFORM frm_read_node USING l_item g_abap_code.
+    ENDDO.
+
+  ENDLOOP.
 
   APPEND ` END OF TY_DATA.` TO g_abap_code.
 
+  " 先输出嵌套结构定义
+  APPEND LINES OF g_nested_defs TO g_abap_table.
+  " 再输出根结构定义
   APPEND LINES OF g_abap_code TO g_abap_table.
 
   CALL FUNCTION 'PRETTY_PRINTER'
@@ -183,12 +191,13 @@ FORM frm_read_node USING node TYPE REF TO if_ixml_node code TYPE tt_code.
   DATA(l_rs) = l_element->find_from_name_ns( depth = 2 name = `repeatingSection` uri = `http://schemas.microsoft.com/office/word/2012/wordml` ).
 
   IF l_rs IS NOT INITIAL.
-    " 重复替换
+    " 重复替换 - 处理嵌套结构
+    DATA: l_nested_code TYPE tt_code.   " 存储当前嵌套结构的字段
+
     DATA(l_filter) = node->create_filter_name_ns( name      = `sdt`
                                                   namespace = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
 
     DATA(l_iterator) = node->create_iterator_filtered( filter = l_filter depth = 0 ).
-
 
     DATA(l_ttag) = l_element->find_from_name_ns( depth = 2 name = `tag` uri = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
 
@@ -196,8 +205,7 @@ FORM frm_read_node USING node TYPE REF TO if_ixml_node code TYPE tt_code.
 
     DATA(l_ttag_name) = l_ttag->get_attribute_ns( name = `val` uri = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
 
-    APPEND |TYPES: BEGIN OF ty_{ l_ttag_name },| TO g_abap_table.
-
+    " 遍历并递归处理子节点
     DO.
       DATA(l_item) = l_iterator->get_next( ).
 
@@ -214,25 +222,71 @@ FORM frm_read_node USING node TYPE REF TO if_ixml_node code TYPE tt_code.
 
       APPEND l_gid TO g_processed_gid.
 
-      PERFORM frm_read_node USING l_item g_abap_table.
+      PERFORM frm_read_node USING l_item l_nested_code.
     ENDDO.
 
-    APPEND | END OF ty_{ l_ttag_name },| TO g_abap_table.
-    APPEND | tt_{ l_ttag_name } TYPE STANDARD TABLE OF ty_{ l_ttag_name } WITH DEFAULT KEY.| TO g_abap_table.
+    " 生成嵌套结构定义并添加到全局表
+    APPEND |TYPES: BEGIN OF ty_{ l_ttag_name },| TO g_nested_defs.
+    APPEND LINES OF l_nested_code TO g_nested_defs.
+    APPEND | END OF ty_{ l_ttag_name },| TO g_nested_defs.
+    APPEND | tt_{ l_ttag_name } TYPE STANDARD TABLE OF ty_{ l_ttag_name } WITH DEFAULT KEY.| TO g_nested_defs.
 
+    " 在父结构中添加嵌套字段引用
     APPEND | { l_ttag_name } TYPE tt_{ l_ttag_name },| TO code.
 
   ELSE.
-    " 直接替换
 
-    l_ttag = l_element->find_from_name_ns( depth = 2 name = `tag` uri = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
+    " 判断是否还有 sdt
+    DATA(l_sub_sdt) = l_element->find_from_name_ns( depth = 0 name = `sdt` uri = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
 
-    CHECK l_ttag IS BOUND.
+    IF l_sub_sdt IS BOUND.
 
-    l_ttag_name = l_ttag->get_attribute_ns( name = `val` uri = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
+      DATA(l_sub_filter) = node->create_filter_name_ns( name      = `sdt`
+                                                        namespace = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
 
-    APPEND | { l_ttag_name } TYPE string,| TO code.
+      DATA(l_sub_iterator) = node->create_iterator_filtered( filter = l_sub_filter depth = 0 ).
+
+      DATA(l_sub_ttag) = l_element->find_from_name_ns( depth = 2 name = `tag` uri = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
+
+      CHECK l_sub_ttag IS BOUND.
+
+      DATA(l_sub_ttag_name) = l_sub_ttag->get_attribute_ns( name = `val` uri = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
+      APPEND | BEGIN OF { l_sub_ttag_name },| TO code.
+
+
+      " 遍历并递归处理子节点
+      DO.
+        DATA(l_sub_item) = l_sub_iterator->get_next( ).
+
+        IF l_sub_item IS NOT BOUND.
+          EXIT.
+        ENDIF.
+
+        DATA(l_sub_gid) = l_sub_item->get_gid( ).
+
+        READ TABLE g_processed_gid TRANSPORTING NO FIELDS WITH KEY table_line = l_sub_gid.
+        IF sy-subrc = 0.
+          CONTINUE.
+        ENDIF.
+
+        APPEND l_sub_gid TO g_processed_gid.
+
+        PERFORM frm_read_node USING l_sub_item code.
+      ENDDO.
+
+      APPEND | END OF { l_sub_ttag_name },| TO code.
+
+    ELSE.
+      " 直接替换 - 处理简单字段
+      l_ttag = l_element->find_from_name_ns( depth = 2 name = `tag` uri = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
+
+      CHECK l_ttag IS BOUND.
+
+      l_ttag_name = l_ttag->get_attribute_ns( name = `val` uri = `http://schemas.openxmlformats.org/wordprocessingml/2006/main` ).
+
+      APPEND | { l_ttag_name } TYPE string,| TO code.
+    ENDIF.
+
   ENDIF.
-
 
 ENDFORM.
