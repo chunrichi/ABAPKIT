@@ -167,8 +167,8 @@ CLASS lcl_detial_handle IMPLEMENTATION.
             MOVE-CORRESPONDING <ls_detial> TO <ls_key>.
             tabkey = <ls_key>.
 
-            APPEND VALUE #( pgmid = 'R3TR' object = 'TABU' mastertype = 'TABU'
-              mastername = g_currer_detial-tabname objname = g_currer_detial-tabname tabkey = tabkey ) TO lt_e071k.
+            APPEND VALUE #( pgmid      = 'R3TR'                  object  = 'TABU'                  mastertype = 'TABU'
+                            mastername = g_currer_detial-tabname objname = g_currer_detial-tabname tabkey     = tabkey ) TO lt_e071k.
 
           ENDIF.
         ENDLOOP.
@@ -393,13 +393,13 @@ FORM frm_set_fcat USING   p_fieldname
   lv_coltext   = p_coltext.
 
 
-  APPEND VALUE lvc_s_fcat( fieldname  = lv_filedname
-                           coltext    = p_coltext
-                           ref_table  = p_ref_table
-                           ref_field  = p_ref_field
-                           scrtext_l  = p_coltext
-                           scrtext_m  = p_coltext
-                           scrtext_s  = p_coltext ) TO gt_fieldcat ASSIGNING FIELD-SYMBOL(<ls_fieldcat>).
+  APPEND VALUE lvc_s_fcat( fieldname = lv_filedname
+                           coltext   = p_coltext
+                           ref_table = p_ref_table
+                           ref_field = p_ref_field
+                           scrtext_l = p_coltext
+                           scrtext_m = p_coltext
+                           scrtext_s = p_coltext ) TO gt_fieldcat ASSIGNING FIELD-SYMBOL(<ls_fieldcat>).
 
   IF lv_filedname = 'READC'.
     <ls_fieldcat>-checkbox = 'X'.
@@ -413,11 +413,11 @@ ENDFORM.
 FORM frm_set_layout .
 
   gs_layout = VALUE #(
-                       zebra = 'X'
+                       zebra      = 'X'
                        cwidth_opt = 'X'
                        ctab_fname = 'COLOR'
                        box_fname  = 'BOX'
-                      ).
+                     ).
 ENDFORM.
 *&---------------------------------------------------------------------*
 *&      Form  FRM_PF_STATUS
@@ -578,6 +578,7 @@ FORM frm_popup_detial USING ps_display TYPE ty_display.
 
   MOVE-CORRESPONDING gs_layout TO gs_detial_layout.
   gs_detial_layout-sel_mode = 'D'.
+  CLEAR gs_detial_layout-box_fname.
   " <<
 
   " display
@@ -589,18 +590,18 @@ FORM frm_popup_detial USING ps_display TYPE ty_display.
     lcl_detial_handle=>init_events( go_detial_alv ).
 
     go_detial_alv->set_table_for_first_display(
-       EXPORTING
-         is_variant                    = ls_variant
-         is_layout                     = gs_detial_layout
-       " it_toolbar_excluding          = lt_exclude
-       CHANGING
-         it_outtab                     = <gt_detial>
-         it_fieldcatalog               = gt_detial_fieldcat
-       EXCEPTIONS
-         invalid_parameter_combination = 1
-         program_error                 = 2
-         too_many_lines                = 3
-         OTHERS                        = 4 ).
+      EXPORTING
+        is_variant                    = ls_variant
+        is_layout                     = gs_detial_layout
+      " it_toolbar_excluding          = lt_exclude
+      CHANGING
+        it_outtab                     = <gt_detial>
+        it_fieldcatalog               = gt_detial_fieldcat
+      EXCEPTIONS
+        invalid_parameter_combination = 1
+        program_error                 = 2
+        too_many_lines                = 3
+        OTHERS                        = 4 ).
     IF sy-subrc <> 0.
       MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
             WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
