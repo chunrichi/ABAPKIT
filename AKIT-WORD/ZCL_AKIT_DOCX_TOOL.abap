@@ -423,11 +423,6 @@ CLASS ZCL_AKIT_DOCX_TOOL IMPLEMENTATION.
 
     DATA(l_fieldname) = l_val->get_value( ).
 
-    IF l_fieldname = `item`
-      OR l_fieldname = 'ITEM'.
-      BREAK-POINT.
-    ENDIF.
-
     FIELD-SYMBOLS: <l_data> TYPE any,
                    <l_tabl> TYPE STANDARD TABLE.
 
@@ -550,6 +545,7 @@ CLASS ZCL_AKIT_DOCX_TOOL IMPLEMENTATION.
           lv_length TYPE i,
           lv_path   TYPE string.
 
+    lv_path = path.
     lt_file = cl_bcs_convert=>xstring_to_solix( iv_xstring = l_document ).
     lv_length = xstrlen( l_document ).
 
@@ -589,7 +585,17 @@ CLASS ZCL_AKIT_DOCX_TOOL IMPLEMENTATION.
                                                        OTHERS                  = 24 ).
 
     IF sy-subrc = 0.
-      cl_gui_frontend_services=>execute( document = lv_path ).
+      cl_gui_frontend_services=>execute( EXPORTING  document               = lv_path
+                                         EXCEPTIONS cntl_error             = 1
+                                                    error_no_gui           = 2
+                                                    bad_parameter          = 3
+                                                    file_not_found         = 4
+                                                    path_not_found         = 5
+                                                    file_extension_unknown = 6
+                                                    error_execute_failed   = 7
+                                                    synchronous_failed     = 8
+                                                    not_supported_by_gui   = 9
+                                                    OTHERS                 = 10 ).
     ENDIF.
 
   ENDMETHOD.
