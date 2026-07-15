@@ -68,6 +68,11 @@ FORM frm_upload_file .
 
   CONCATENATE LINES OF lt_file_data INTO lv_file_xstring IN BYTE MODE.
 
+  " 截取实际文件长度，去除尾部零字节
+  IF lv_length > 0.
+    lv_file_xstring = lv_file_xstring(lv_length).
+  ENDIF.
+
   DATA: lv_filename  TYPE string,
         lv_extension TYPE string.
   DATA: lv_regex TYPE string.

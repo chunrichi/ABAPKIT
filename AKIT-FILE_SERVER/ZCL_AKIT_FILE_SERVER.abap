@@ -10,9 +10,10 @@ CLASS zcl_akit_file_server DEFINITION
         " 返回消息
         type    TYPE bapi_mtype,
         message TYPE bapi_msg,
+        guid    TYPE guid,
       END OF ty_result .
 
-    CLASS-DATA aliass TYPE char10 .
+    CLASS-DATA aliass TYPE ztxx_serverfile-aliass value 'ZAPP_FILE'.
 
     CLASS-METHODS gen_guid
       EXPORTING
@@ -20,7 +21,8 @@ CLASS zcl_akit_file_server DEFINITION
         !ev_uuid TYPE data .
     CLASS-METHODS delete
       IMPORTING
-        !file_fullname   TYPE data
+        !file_fullname   TYPE data OPTIONAL
+        !guid            TYPE guid OPTIONAL
       RETURNING
         VALUE(rs_result) TYPE ty_result .
     CLASS-METHODS dirhome
@@ -28,7 +30,8 @@ CLASS zcl_akit_file_server DEFINITION
         VALUE(dir) TYPE dirname .
     CLASS-METHODS download
       IMPORTING
-        !full_filename   TYPE data
+        !full_filename   TYPE data OPTIONAL
+        !guid            TYPE guid OPTIONAL
         !guidown         TYPE abap_bool OPTIONAL
       EXPORTING
         !ev_filename     TYPE string
@@ -64,6 +67,7 @@ CLASS zcl_akit_file_server DEFINITION
       EXPORTING
         !ev_filename     TYPE string
         !ev_filelength   TYPE i
+        !ev_guid         TYPE guid
       RETURNING
         VALUE(rs_result) TYPE ty_result .
   PROTECTED SECTION.
@@ -86,6 +90,34 @@ CLASS ZCL_AKIT_FILE_SERVER IMPLEMENTATION.
 
     DATA: lv_file_fullname TYPE string.
 
+    " 通过 GUID 软删除
+    IF guid IS NOT INITIAL.
+      SELECT SINGLE file_fullname, delete_flag
+        FROM ztxx_serverfile
+        WHERE guid = @guid
+        INTO ( @lv_file_fullname, @DATA(lv_deleted) ).
+      IF sy-subrc <> 0.
+        rs_result = VALUE #( type = 'E' message = '未找到相关数据' ).
+        RETURN.
+      ENDIF.
+      IF lv_deleted = abap_true.
+        rs_result = VALUE #( type = 'S' message = '文件已被删除' ).
+        RETURN.
+      ENDIF.
+
+      " 软删除
+      UPDATE ztxx_serverfile SET delete_flag = @abap_true,
+                                  change_date = @sy-datum,
+                                  change_time = @sy-uzeit,
+                                  change_user = @sy-uname
+                            WHERE guid = @guid.
+      COMMIT WORK AND WAIT.
+
+      rs_result = VALUE #( type = 'S' message = '文件已被删除' guid = guid ).
+      RETURN.
+    ENDIF.
+
+    " 物理删除（兼容旧调用方式）
     lv_file_fullname = file_fullname.
 
     IF lv_file_fullname IS INITIAL.
@@ -153,11 +185,27 @@ CLASS ZCL_AKIT_FILE_SERVER IMPLEMENTATION.
 
 
 
-    IF full_filename IS INITIAL.
-      rs_result = VALUE #( type = 'E' message = '文件名不能为空' ).
-      RETURN.
+    " 通过 GUID 查表获取文件全名
+    IF guid IS NOT INITIAL.
+      SELECT SINGLE file_fullname, delete_flag
+        FROM ztxx_serverfile
+        WHERE guid = @guid
+        INTO ( @lv_full_filename, @DATA(lv_deleted) ).
+      IF sy-subrc <> 0.
+        rs_result = VALUE #( type = 'E' message = '未找到相关数据' ).
+        RETURN.
+      ENDIF.
+      IF lv_deleted = abap_true.
+        rs_result = VALUE #( type = 'E' message = '文件已被删除' ).
+        RETURN.
+      ENDIF.
+    ELSE.
+      IF full_filename IS INITIAL.
+        rs_result = VALUE #( type = 'E' message = '文件名不能为空' ).
+        RETURN.
+      ENDIF.
+      lv_full_filename = full_filename.
     ENDIF.
-    lv_full_filename = full_filename.
 
     " 判断文件是否存在
     CALL FUNCTION 'SXPG_COMMAND_EXECUTE'
@@ -593,15 +641,20 @@ CLASS ZCL_AKIT_FILE_SERVER IMPLEMENTATION.
     " 文件上载到服务器
     " 使用记录文件上载位置等信息
 
-    DATA: lv_filename TYPE string,
-          lv_filepath TYPE string,
-          lv_fullname TYPE string.
+    DATA: lv_filename  TYPE string,
+          lv_filepath  TYPE string,
+          lv_extension TYPE string,
+          lv_fullname  TYPE string.
     DATA: ls_result TYPE ty_result.
     DATA: lv_path_separator TYPE dmc_mds_path_separator.
     DATA: lv_message TYPE string,
           lv_failed  TYPE abap_bool.
     DATA: lt_solix TYPE solix_tab.
     DATA: lv_length TYPE i.
+    DATA: lv_original_length TYPE i,
+          lv_guid            TYPE guid.
+    DATA: lv_root_path TYPE string,
+          lv_sub_path  TYPE string.
 
     " 生成 UUID 文件名
     IF filename IS INITIAL.
@@ -612,13 +665,7 @@ CLASS ZCL_AKIT_FILE_SERVER IMPLEMENTATION.
 
     " 创建文件夹
     lv_filepath = filepath.
-    IF lv_filepath IS NOT INITIAL.
-      ls_result = mkdir( dir = lv_filepath ).
-    ENDIF.
-    IF ls_result-type = 'E'.
-      rs_result = ls_result.
-      RETURN.
-    ENDIF.
+    lv_extension = extension.
 
     " 文件路径分隔符
     CALL FUNCTION 'DMC_MDS_GET_PATHSEPARATOR'
@@ -632,10 +679,32 @@ CLASS ZCL_AKIT_FILE_SERVER IMPLEMENTATION.
       lv_path_separator = '/'.
     ENDIF.
 
+    " 未传路径时，从 AL11 配置获取根目录 + 日期子目录
+    IF lv_filepath IS INITIAL.
+      lv_root_path = dirhome( ).
+      IF lv_root_path IS INITIAL.
+        rs_result = VALUE #( type = 'E' message = '文件服务器目录未维护' ).
+        RETURN.
+      ENDIF.
+      lv_sub_path = sy-datum.
+      lv_filepath = lv_root_path && lv_path_separator && lv_sub_path.
+    ELSE.
+      lv_root_path = dirhome( ).
+      lv_sub_path = ''.
+    ENDIF.
+
+    IF lv_filepath IS NOT INITIAL.
+      ls_result = mkdir( dir = lv_filepath ).
+    ENDIF.
+    IF ls_result-type = 'E'.
+      rs_result = ls_result.
+      RETURN.
+    ENDIF.
+
     " 文件全名
     lv_fullname = lv_filepath && lv_path_separator && lv_filename.
-    IF extension IS NOT INITIAL.
-      lv_fullname = lv_fullname && '.' && extension.
+    IF lv_extension IS NOT INITIAL.
+      lv_fullname = lv_fullname && '.' && lv_extension.
     ENDIF.
 
     " 打开文件
@@ -676,6 +745,8 @@ CLASS ZCL_AKIT_FILE_SERVER IMPLEMENTATION.
         output_length = ev_filelength
       TABLES
         binary_tab    = lt_solix.
+
+    lv_original_length = ev_filelength.
 
     ev_filename  = lv_filename.
 
@@ -745,7 +816,30 @@ CLASS ZCL_AKIT_FILE_SERVER IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    rs_result = VALUE #( type = 'S' message = '文件上传成功' ).
+    " 记录到日志表
+    gen_guid( IMPORTING ev_guid = lv_guid ).
+    ev_guid = lv_guid.
+
+    INSERT INTO ztxx_serverfile VALUES @( VALUE #(
+      mandt            = sy-mandt
+      guid             = lv_guid
+      aliass           = zcl_akit_file_server=>aliass
+      file_name        = lv_filename
+      file_extension   = lv_extension
+      file_length      = lv_original_length
+      file_path        = lv_filepath
+      file_rootpath    = lv_root_path
+      file_subpath     = lv_sub_path
+      file_fullname    = lv_fullname
+      upload_file_name = COND #( WHEN filename IS NOT INITIAL THEN CONV string( filename ) ELSE lv_filename )
+      delete_flag      = abap_false
+      create_date      = sy-datum
+      create_time      = sy-uzeit
+      create_user      = sy-uname
+    ) ).
+    COMMIT WORK AND WAIT.
+
+    rs_result = VALUE #( type = 'S' message = '文件上传成功' guid = lv_guid ).
 
   ENDMETHOD.
 ENDCLASS.
